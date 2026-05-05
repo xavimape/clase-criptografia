@@ -1,0 +1,19 @@
+ALERT: Anomalous file system activity detected
+Host: WORKSTATION-14
+User: jsmith
+Timestamp: 2026-05-04 03:42:17 UTC
+
+Process: unknown.exe (PID: 4821)
+Parent Process: explorer.exe (PID: 1204)
+Process Hash (SHA256): e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+Path: C:\Users\jsmith\AppData\Roaming\unknown.exe
+
+File modifications (last 60 seconds): 1,847
+Extensions renamed to: .locked
+Directories affected: C:\Users\jsmith\Documents, C:\Users\jsmith\Desktop, C:\Shares\Finance, C:\Shares\HR
+Shadow copies deleted: YES
+CPU usage: 94%
+Network activity: outbound connection to 91.108.4.200:8080
+Ransom note detected: README_DECRYPT.txt (found in 23 directories)
+Volume Shadow Copy Service: DISABLED
+Windows Defender: DISABLED (registry key modified)

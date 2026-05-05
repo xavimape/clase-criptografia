@@ -1,0 +1,4 @@
+User login attempt detected
+Username: admin
+Hash: 5f4dcc3b5aa765d61d8327deb882cf99
+Source IP: 192.168.1.45
