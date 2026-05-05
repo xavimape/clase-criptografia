@@ -110,6 +110,7 @@
     bottom: 0; left: 0; right: 0;
     height: 2px;
     background: var(--accent);
+    box-shadow: 0 0 8px rgba(0,229,255,0.5);
   }
 
   .nav-status {
@@ -995,11 +996,117 @@
     .slide-grid, .slide-grid-3 { grid-template-columns: 1fr; }
     .hash-detail { grid-template-columns: 1fr; }
   }
+
+  /* ── MEJORAS VISUALES ── */
+
+  /* Botón Home en nav */
+  .nav-home {
+    padding: 14px 18px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-decoration: none;
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+    text-transform: uppercase;
+    transition: color 0.2s, background 0.2s;
+    display: flex;
+    align-items: center;
+  }
+  .nav-home:hover { color: var(--accent); background: rgba(0,229,255,0.04); }
+
+  /* Scrollbar custom */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* Transición de entrada por sección */
+  .section.active {
+    animation: sectionFadeIn 0.25s ease;
+  }
+  @keyframes sectionFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Cards: transition + hover glow */
+  .card {
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  }
+  .card:hover {
+    border-color: rgba(0,229,255,0.35);
+    box-shadow: 0 4px 20px rgba(0,229,255,0.07);
+    background: var(--surface2);
+  }
+
+  /* Nav tab activo: ligera mejora de background */
+  .nav-tab.active {
+    color: var(--accent);
+    background: rgba(0,229,255,0.06);
+  }
+
+  /* Fix: padding-bottom del lab para que el score-bar no tape contenido */
+  .lab-content { padding-bottom: 72px; }
+
+  /* Botón run mejorado */
+  .run-btn {
+    position: relative;
+    overflow: hidden;
+  }
+  .run-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0,229,255,0.1) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .run-btn:hover::after { opacity: 1; }
+
+  /* Slide: número de slide más sutil */
+  .slide-num { font-family: var(--mono); }
+
+  /* Progress dots mejorados */
+  .progress-dot.active {
+    width: 18px;
+    border-radius: 3px;
+    transition: width 0.2s ease, background 0.2s;
+  }
+
+  /* Highlight box: borde izquierdo animado al hacer hover */
+  .highlight-box {
+    transition: border-left-color 0.2s;
+  }
+  .highlight-box:hover { border-left-color: var(--accent3); }
+
+  /* Timeline step: hover sutil */
+  .timeline-step {
+    transition: background 0.15s;
+    border-radius: 0 4px 4px 0;
+    padding-right: 12px;
+  }
+  .timeline-step:hover { background: rgba(255,255,255,0.02); }
+
+  /* Inputs: focus ring más visible */
+  .demo-input:focus,
+  .lab-answer-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,229,255,0.1);
+  }
+
+  /* Score bar: micro refinamiento */
+  .score-bar {
+    backdrop-filter: blur(8px);
+    background: rgba(17,20,24,0.95);
+  }
 </style>
 </head>
 <body>
 
 <nav>
+  <a href="../index.html" class="nav-home">← HOME</a>
   <div class="nav-brand">SOC<span>//</span>CRYPTO</div>
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showSection('slides')">📊 Clase</button>
