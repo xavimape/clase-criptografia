@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🛠️ Herramientas para Criptografía en SOC</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <div class="container">
+<h1>🛠️ Herramientas para Criptografía en SOC</h1>
+
+<hr>
+
+<h2>Análisis y Decodificación</h2>
+
+<table><thead><tr>
+<tr><th>Herramienta</th><th>URL</th><th>Uso</th><th>Tipo</th></tr>
+</tr></thead><tbody>
+<tr><td><strong>CyberChef</strong></td><td>gchq.github.io/CyberChef</td><td>Swiss army knife: decode, hash, cifrado, análisis</td><td>Online / Self-hosted</td></tr>
+<tr><td><strong>de4js</strong></td><td>de4js.kshift.me</td><td>Deofuscación de JavaScript</td><td>Online</td></tr>
+<tr><td><strong>Any.run</strong></td><td>any.run</td><td>Sandbox con análisis de tráfico TLS</td><td>Online</td></tr>
+<tr><td><strong>Hybrid Analysis</strong></td><td>hybrid-analysis.com</td><td>Sandbox gratuito</td><td>Online</td></tr>
+</tbody></table>
+
+<h3>CyberChef — Recetas útiles para SOC</h3>
+
+<pre><code>
+# Decodificar PowerShell -enc:
+&quot;From Base64&quot; → &quot;Decode text (UTF-16LE)&quot;
+
+# Analizar un hash:
+&quot;SHA256&quot; de un input para comparar
+
+# Multi-layer decode:
+&quot;From Base64&quot; → &quot;From Base64&quot; → &quot;From Base64&quot; (capas de ofuscación)
+
+# Detectar encoding:
+&quot;Magic&quot; (CyberChef detecta automáticamente el encoding)
+</code></pre>
+
+<hr>
+
+<h2>Hash y Verificación de IOCs</h2>
+
+<table><thead><tr>
+<tr><th>Herramienta</th><th>URL</th><th>Uso</th></tr>
+</tr></thead><tbody>
+<tr><td><strong>VirusTotal</strong></td><td>virustotal.com</td><td>Buscar hashes, URLs, IPs contra 70+ engines</td></tr>
+<tr><td><strong>MalwareBazaar</strong></td><td>bazaar.abuse.ch</td><td>Samples de malware, búsqueda por hash</td></tr>
+<tr><td><strong>Any.run</strong></td><td>any.run</td><td>Sandbox + IOC extraction</td></tr>
+<tr><td><strong>OTX AlienVault</strong></td><td>otx.alienvault.com</td><td>Threat intel comunitaria, IOCs</td></tr>
+<tr><td><strong>MISP</strong></td><td>misp-project.org</td><td>Plataforma de threat sharing (self-hosted)</td></tr>
+</tbody></table>
+
+<h3>Calcular hashes rápido</h3>
+
+<pre><code>
+# Linux
+sha256sum archivo.exe
+md5sum archivo.exe
+sha1sum archivo.exe
+
+# PowerShell (Windows)
+Get-FileHash archivo.exe -Algorithm SHA256
+Get-FileHash archivo.exe -Algorithm MD5
+
+# Python
+python -c &quot;import hashlib; print(hashlib.sha256(open(&#x27;archivo.exe&#x27;,&#x27;rb&#x27;).read()).hexdigest())&quot;
+</code></pre>
+
+<hr>
+
+<h2>Análisis de TLS y Red</h2>
+
+<table><thead><tr>
+<tr><th>Herramienta</th><th>URL/Comando</th><th>Uso</th></tr>
+</tr></thead><tbody>
+<tr><td><strong>Wireshark</strong></td><td>wireshark.org</td><td>Captura y análisis de tráfico TLS/red</td></tr>
+<tr><td><strong>Zeek (Bro)</strong></td><td>zeek.org</td><td>NSM: extrae JA3, certs, DNS, logs</td></tr>
+<tr><td><strong>JA3 lookup</strong></td><td>ja3er.com</td><td>Identificar herramienta por fingerprint JA3</td></tr>
+<tr><td><strong>SSL Labs</strong></td><td>ssllabs.com/ssltest</td><td>Test de configuración TLS de servidor</td></tr>
+<tr><td><strong>testssl.sh</strong></td><td>testssl.sh</td><td>Test TLS desde CLI</td></tr>
+<tr><td><strong>nmap</strong></td><td>nmap.org</td><td><code>nmap --script ssl-enum-ciphers -p 443 host</code></td></tr>
+</tbody></table>
+
+<h3>Filtros Wireshark útiles</h3>
+
+<pre><code>
+# Ver todo el tráfico TLS
+tls
+
+# Ver solo ClientHello (para JA3)
+tls.handshake.type == 1
+
+# Ver certificados del servidor
+tls.handshake.type == 11
+
+# Filtrar por SNI específico
+tls.handshake.extensions_server_name == &quot;malicious.com&quot;
+
+# Ver certificados autofirmados (básico)
+# Requiere correlación: issuer = subject
+</code></pre>
+
+<hr>
+
+<h2>Análisis de Binarios / Malware</h2>
+
+<table><thead><tr>
+<tr><th>Herramienta</th><th>Uso</th></tr>
+</tr></thead><tbody>
+<tr><td><strong>strings</strong> / <strong>floss</strong></td><td>Extraer strings de binarios (incluye strings ofuscados)</td></tr>
+<tr><td><strong>binwalk</strong></td><td>Análisis de firmware y entropía (<code>binwalk -E archivo</code>)</td></tr>
+<tr><td><strong>PEStudio</strong></td><td>Análisis estático de PE (Windows)</td></tr>
+<tr><td><strong>Ghidra</strong></td><td>Decompilador (NSA, gratuito)</td></tr>
+<tr><td><strong>IDA Free</strong></td><td>Decompilador/disassembler</td></tr>
+<tr><td><strong>x64dbg</strong></td><td>Debugger de Windows</td></tr>
+<tr><td><strong>ent</strong></td><td>Calcular entropía de Shannon de archivos</td></tr>
+</tbody></table>
+
+<h3>Detectar cifrado por entropía</h3>
+
+<pre><code>
+# Linux — ent
+sudo apt install ent
+ent archivo.bin
+# Entropy = 7.9xx → probablemente cifrado/comprimido
+# Entropy = 4-6   → archivo de texto/datos normales
+
+# binwalk
+binwalk -E archivo.bin  # genera gráfico de entropía
+
+# Python
+python -c &quot;
+import math, collections
+data = open(&#x27;archivo.bin&#x27;,&#x27;rb&#x27;).read()
+freq = collections.Counter(data)
+entropy = -sum(c/len(data)*math.log2(c/len(data)) for c in freq.values())
+print(f&#x27;Entropía: {entropy:.4f} bits/byte&#x27;)
+&quot;
+</code></pre>
+
+<hr>
+
+<h2>Forense y Respuesta a Incidentes</h2>
+
+<table><thead><tr>
+<tr><th>Herramienta</th><th>Uso</th></tr>
+</tr></thead><tbody>
+<tr><td><strong>FTK Imager</strong></td><td>Adquisición forense, cálculo de hashes</td></tr>
+<tr><td><strong>Autopsy</strong></td><td>Análisis forense de discos</td></tr>
+<tr><td><strong>Volatility 3</strong></td><td>Análisis de dumps de memoria (buscar claves AES)</td></tr>
+<tr><td><strong>WinPmem</strong></td><td>Dump de memoria RAM en Windows</td></tr>
+<tr><td><strong>Velociraptor</strong></td><td>DFIR platform (hunting, colección de evidencia)</td></tr>
+<tr><td><strong>KAPE</strong></td><td>Recolección rápida de artefactos forenses</td></tr>
+</tbody></table>
+
+<h3>Buscar claves AES en memoria (Volatility)</h3>
+
+<pre><code>
+# Ver procesos activos
+vol.py -f memory.dmp windows.pslist
+
+# Buscar strings en proceso específico (PID del ransomware)
+vol.py -f memory.dmp windows.memmap --pid 4821 --dump
+
+# Buscar estructuras de claves AES (patrones de bytes específicos)
+vol.py -f memory.dmp windows.strings --pid 4821
+</code></pre>
+
+<hr>
+
+<h2>Ransomware — Recursos de Respuesta</h2>
+
+<table><thead><tr>
+<tr><th>Recurso</th><th>URL</th><th>Uso</th></tr>
+</tr></thead><tbody>
+<tr><td><strong>No More Ransom</strong></td><td>nomoreransom.org</td><td>Decryptors gratuitos oficiales</td></tr>
+<tr><td><strong>ID Ransomware</strong></td><td>id-ransomware.malwarehunterteam.com</td><td>Identificar familia por nota/extensión</td></tr>
+<tr><td><strong>Ransomware.live</strong></td><td>ransomware.live</td><td>Monitor de víctimas publicadas en dark web</td></tr>
+<tr><td><strong>CISA Ransomware</strong></td><td>cisa.gov/ransomware</td><td>Alertas y guías oficiales del gobierno</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>Certificados y PKI</h2>
+
+<pre><code>
+# Ver certificado de un sitio web
+openssl s_client -connect example.com:443 &lt;/dev/null
+
+# Extraer info del certificado
+openssl s_client -connect example.com:443 &lt;/dev/null | openssl x509 -noout -text
+
+# Verificar cadena de certificados
+openssl verify -CAfile chain.pem certificado.pem
+
+# Windows: ver cert de ejecutable
+Get-AuthenticodeSignature &quot;C:\ruta\archivo.exe&quot; | Format-List *
+
+# Ver certificados instalados en Windows
+certmgr.msc
+</code></pre>
+
+    <br><br>
+    <a href="../index.html">&#8592; Volver al inicio</a>
+  </div>
+</body>
+</html>

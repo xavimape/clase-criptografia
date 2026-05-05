@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>06 — Firmas Digitales y TTPs Reales</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <div class="container">
+<h1>06 — Firmas Digitales y TTPs Reales</h1>
+
+<blockquote><strong>Slide relacionado:</strong> 08 de <code>crypto-soc-training.html</code></blockquote>
+
+<hr>
+
+<h2>¿Qué es una firma digital?</h2>
+
+<p>Una firma digital garantiza dos cosas simultáneamente:</p>
+<ul>
+<li><strong>Autenticidad:</strong> El archivo viene de quien dice ser</li>
+<li><strong>Integridad:</strong> El archivo no fue modificado después de ser firmado</li>
+</ul>
+
+<p>No es una imagen de firma — es criptografía pura.</p>
+
+<hr>
+
+<h2>Cómo funciona</h2>
+
+<h3>Proceso de firma</h3>
+<pre><code>
+[El firmante tiene su clave privada]
+
+1. Calcula el hash del documento
+   SHA-256(documento.exe) = &quot;abc123...&quot;
+
+2. Cifra ese hash con su clave privada
+   RSA_sign(hash, clave_privada) = firma_digital
+
+3. Adjunta la firma al documento
+   documento.exe + firma + certificado_público
+</code></pre>
+
+<h3>Proceso de verificación</h3>
+<pre><code>
+[El verificador tiene la clave pública del firmante]
+
+1. Descifra la firma con la clave pública del firmante
+   RSA_verify(firma, clave_pública) = hash_original = &quot;abc123...&quot;
+
+2. Calcula el hash del documento recibido
+   SHA-256(documento_recibido.exe) = &quot;abc123...&quot;
+
+3. Compara ambos hashes
+   &quot;abc123...&quot; == &quot;abc123...&quot; → ✅ VÁLIDO
+   &quot;abc123...&quot; != &quot;xyz789...&quot; → ❌ INVÁLIDO (modificado o falso)
+</code></pre>
+
+<hr>
+
+<h2>Cadena de confianza (PKI)</h2>
+
+<pre><code>
+Certificado Raíz (Root CA)
+    ↓ firma
+Certificado Intermedio (Intermediate CA)
+    ↓ firma
+Certificado de entidad final (tu exe, tu web)
+</code></pre>
+
+<p>Los sistemas operativos incluyen una lista de Root CAs confiables. Si la cadena llega a una Root CA confiable, el certificado es válido.</p>
+
+<p><strong>Root CAs conocidas:</strong> DigiCert, Let&#x27;s Encrypt, GlobalSign, Sectigo, Comodo</p>
+
+<hr>
+
+<h2>Windows Authenticode — Firmas de binarios</h2>
+
+<p>Windows usa <strong>Authenticode</strong> para firmar ejecutables. Al ejecutar un .exe firmado:</p>
+
+<pre><code>
+Firma válida + CA conocida → se ejecuta (con o sin aviso)
+Firma válida + CA desconocida → SmartScreen puede alertar
+Sin firma → SmartScreen alerta o bloquea
+</code></pre>
+
+<p><strong>Verificar firma en Windows:</strong></p>
+<pre><code>
+# PowerShell
+Get-AuthenticodeSignature .\archivo.exe
+
+# Salida:
+Status          : Valid
+SignerCertificate : [Cert de Microsoft Corporation]
+Path            : archivo.exe
+</code></pre>
+
+<hr>
+
+<h2>TTPs Reales — Cómo el malware abusa de firmas</h2>
+
+<h3>1. Living off the Land (LOLBins)</h3>
+
+<p>Usar binarios legítimos <strong>firmados por Microsoft</strong> para ejecutar código malicioso.</p>
+
+<pre><code>
+Los atacantes usan binarios como:
+- mshta.exe → ejecuta HTA (HTML Application)
+- regsvr32.exe → puede cargar DLLs remotas
+- certutil.exe → puede decodificar Base64 y descargar archivos
+- wmic.exe → ejecución lateral
+- rundll32.exe → cargar DLLs
+
+Ventaja del atacante:
+✓ Firmados por Microsoft → no disparan AV por firma
+✓ Legítimos → difíciles de bloquear
+✓ Presentes en todos los Windows
+</code></pre>
+
+<p><strong>Detección:</strong> Comportamiento anómalo del proceso, no la firma:</p>
+<pre><code>
+certutil.exe -decode input.b64 output.exe
+           ↑ uso anómalo de certutil para decodificar payload
+</code></pre>
+
+<h3>2. Certificados robados de empresas comprometidas</h3>
+
+<p>Atacantes que comprometen empresas legítimas pueden robar sus certificados de firma de código y firmar malware con ellos.</p>
+
+<p><strong>Casos reales:</strong></p>
+<ul>
+<li><strong>Stuxnet (2010):</strong> Firmado con certificados robados de Realtek y JMicron</li>
+<li><strong>CCleaner (2017):</strong> Supply chain — el instalador legítimo fue trojanizado y firmado con el cert real de Avast</li>
+<li><strong>3CX (2023):</strong> Supply chain attack, binario oficial firmado por 3CX contenía malware</li>
+</ul>
+
+<p><strong>Detección:</strong></p>
+<pre><code>
+Firma válida del certificado ≠ Binario legítimo
+
+Acciones:
+- Verificar hash SHA-256 del binario contra fuente oficial
+- Revisar fecha de firma vs fecha de compilación
+- Analizar el binario en sandbox aunque esté firmado
+- Revisar si el certificado fue revocado (CRL, OCSP)
+</code></pre>
+
+<h3>3. Self-signed certificates en tráfico interno</h3>
+
+<pre><code>
+Red interna con cert autofirmado:
+- Puede ser legacy legítimo
+- Puede ser malware con cert propio para C2
+- Puede ser herramienta de ataque (Cobalt Strike, etc.)
+
+Regla práctica:
+- Cert autofirmado + proceso inesperado haciendo conexiones = alerta
+</code></pre>
+
+<h3>4. Timestamp forgery</h3>
+
+<p>Las firmas incluyen timestamp para probar cuándo se firmó. Algunos atacantes manipulan el timestamp para hacer que malware nuevo parezca firmado hace años (antes del incidente).</p>
+
+<hr>
+
+<h2>Verificación práctica</h2>
+
+<pre><code>
+# Ver firma de un ejecutable
+Get-AuthenticodeSignature &quot;C:\Windows\System32\notepad.exe&quot; | Format-List *
+
+# Verificar si el certificado fue revocado
+# (PowerShell verifica automáticamente por defecto)
+
+# Calcular hash para comparar con fuente oficial
+Get-FileHash &quot;archivo.exe&quot; -Algorithm SHA256
+</code></pre>
+
+<pre><code>
+# Linux: verificar firma de paquetes
+gpg --verify archivo.sig archivo
+rpm -K paquete.rpm
+dpkg-sig --verify paquete.deb
+</code></pre>
+
+<hr>
+
+<h2>Relevancia SOC 🔍</h2>
+
+<table><thead><tr>
+<tr><th>Observación</th><th>Interpretación</th><th>Acción</th></tr>
+</tr></thead><tbody>
+<tr><td>Binario firmado con SHA256 diferente al oficial</td><td>Supply chain attack</td><td>Aislar, analizar, escalar</td></tr>
+<tr><td>certutil.exe decodificando archivos</td><td>LOLBin abuse</td><td>Investigar proceso padre</td></tr>
+<tr><td>mshta.exe ejecutando URL remota</td><td>Ejecución remota vía HTA</td><td>Alta prioridad</td></tr>
+<tr><td>Cert de empresa conocida pero dominio sospechoso</td><td>Cert robado o falso</td><td>Verificar con la empresa</td></tr>
+<tr><td>Firma con timestamp muy antiguo en binario nuevo</td><td>Timestamp forgery</td><td>Analizar metadata de PE</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>Próximo tema</h2>
+<p>→ <a href="./07_ransomware.md">07_ransomware.md</a> — Anatomía completa de un ataque de ransomware</p>
+
+    <br><br>
+    <a href="../index.html">&#8592; Volver al inicio</a>
+  </div>
+</body>
+</html>

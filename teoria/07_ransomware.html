@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>07 — Anatomía de un Ataque de Ransomware</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <div class="container">
+<h1>07 — Anatomía de un Ataque de Ransomware</h1>
+
+<blockquote><strong>Slides relacionados:</strong> 09 y 10 de <code>crypto-soc-training.html</code></blockquote>
+
+<hr>
+
+<h2>Visión general</h2>
+
+<p>El ransomware moderno es la aplicación práctica de <strong>toda la criptografía vista</strong> en este curso. Entender cómo funciona criptográficamente te permite:</p>
+<ul>
+<li>Detectarlo más rápido</li>
+<li>Evaluar si hay posibilidad de recuperación</li>
+<li>Responder al incidente correctamente</li>
+</ul>
+
+<hr>
+
+<h2>Fases del ataque — MITRE ATT&amp;CK</h2>
+
+<pre><code>
+INITIAL ACCESS          EXECUTION            PERSISTENCE
+──────────────          ─────────            ───────────
+Phishing                PowerShell           Scheduled Task
+RDP expuesto            WMI                  Registry Run Key
+VPN vuln                LOLBins              Service Installation
+Supply chain            Macro Office         Startup Folder
+</code></pre>
+
+<pre><code>
+DISCOVERY               LATERAL MOVEMENT     EXFILTRATION
+─────────               ────────────────     ────────────
+Net discovery           PsExec               Antes de cifrar
+AD enumeration          WMI remote           FTP/HTTPS a C2
+Share mapping           SMB                  Rclone/MEGAsync
+Backup discovery        RDP                  (doble extorsión)
+</code></pre>
+
+<pre><code>
+IMPACT
+──────
+Cifrado AES-256 por archivo
+Clave AES cifrada con RSA-2048
+Ransomnote en cada carpeta
+Shadow copies eliminadas
+Backups destruidos
+</code></pre>
+
+<hr>
+
+<h2>Análisis criptográfico por fase</h2>
+
+<h3>Fase 1: Acceso inicial</h3>
+<pre><code>
+Payload inicial frecuentemente en Base64:
+powershell -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQ...
+                ↑ decodifica a: IEX (New-Object Net.WebClient).DownloadString(...)
+
+Por qué:
+- Evade firmas de AV que buscan strings conocidos
+- Bypasea filtros de email que bloquean .exe
+- El script se ejecuta en memoria (fileless)
+</code></pre>
+
+<h3>Fase 2: Comunicación C2</h3>
+<pre><code>
+Beaconing por TLS:
+- Intervalo fijo (cada 5 minutos exactos)
+- Certificado autofirmado o emitido recientemente
+- SNI puede ser dominio legítimo (domain fronting)
+- JA3 fingerprint de herramienta C2 conocida
+
+En Zeek/Bro:
+conn.log → same dest_ip:443, interval stddev &lt; 2s → beaconing
+ssl.log  → cert_issuer = cert_subject → autofirmado
+</code></pre>
+
+<h3>Fase 3: Pre-cifrado (exfiltración)</h3>
+<pre><code>
+Doble extorsión (modelo actual):
+1. Antes de cifrar → exfiltran datos sensibles
+2. Cifran los datos
+3. &quot;Pagá o publicamos tus datos&quot;
+
+Herramientas comunes de exfiltración:
+- rclone.exe (copia a Mega, Google Drive, etc.)
+- WinSCP
+- curl/wget a C2 propio
+- Tráfico TLS legítimo a servicios cloud
+</code></pre>
+
+<h3>Fase 4: El cifrado</h3>
+<pre><code>
+IMPLEMENTACIÓN TÍPICA:
+
+for cada archivo en disco:
+    1. generar_clave_aes() → 256 bits aleatorios
+    2. aes_clave = bytes_aleatorios
+    
+    3. cifrar_archivo(archivo, aes_clave, modo=AES-CBC o CTR)
+       → archivo.docx → archivo.docx.LOCKED
+    
+    4. cifrar_clave(aes_clave, rsa_publica_atacante)
+       → aes_clave_cifrada (guardada en archivo header o ransomnote)
+    
+    5. borrar_aes_clave_de_memoria()
+
+Al final:
+- vssadmin delete shadows /all /quiet   (elimina shadow copies)
+- wbadmin delete catalog -quiet          (elimina catálogos de backup)
+- bcdedit /set {default} recoveryenabled No
+</code></pre>
+
+<h3>Fase 5: Post-cifrado</h3>
+<pre><code>
+Ransomnote creada en cada carpeta:
+README.txt / HOW_TO_DECRYPT.txt / RANSOMNOTE.html
+
+Contenido típico:
+- Explicación de qué pasó
+- Proof of Life: ofrecen descifrar 1-3 archivos gratis
+- Instrucciones para pagar (Tor + crypto)
+- Amenaza de publicar datos (doble extorsión)
+- Deadline (urgencia psicológica)
+</code></pre>
+
+<hr>
+
+<h2>Familias de ransomware y sus características criptográficas</h2>
+
+<table><thead><tr>
+<tr><th>Familia</th><th>Cifrado</th><th>Características</th></tr>
+</tr></thead><tbody>
+<tr><td>LockBit 3.0</td><td>AES-256 + RSA-2048/4096</td><td>Muy rápido, cifrado parcial de archivos grandes</td></tr>
+<tr><td>BlackCat/ALPHV</td><td>AES-256 + ChaCha20</td><td>Escrito en Rust, multi-plataforma</td></tr>
+<tr><td>Cl0p</td><td>AES-128 (por víctima)</td><td>Exfiltración masiva antes de cifrar</td></tr>
+<tr><td>Hive</td><td>AES + RSA</td><td>Tenía bug en RNG — CISA publicó decryptor</td></tr>
+<tr><td>WannaCry (2017)</td><td>AES-128-CBC + RSA-2048</td><td>Bug en implementación → decryptor disponible</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>¿Cuándo es posible recuperar sin pagar?</h2>
+
+<pre><code>
+Escenario A: RNG débil (generador de números aleatorios predecible)
+→ Hive ransomware: el RNG tenía flaw → CISA publicó herramienta de descifrado
+→ Lección: la seguridad del cifrado depende de la aleatoriedad de la clave
+
+Escenario B: Bug en implementación de AES
+→ WannaCry: en algunas versiones la clave quedaba en memoria
+→ WannaKey/WanaKiwi: extraía la clave de la memoria RAM
+→ Lección: NUNCA apagar la máquina antes de hacer dump de RAM
+
+Escenario C: Clave hardcodeada
+→ Raros, generalmente en ransomware amateur
+→ Análisis estático del binario puede revelar la clave
+
+Escenario D: La clave privada RSA del atacante filtrada
+→ Ocurre cuando el C2 del atacante es comprometido o el grupo desaparece
+→ Grupos como Conti tuvieron sus claves filtradas internamente
+</code></pre>
+
+<hr>
+
+<h2>Checklist de respuesta a incidente de ransomware</h2>
+
+<pre><code>
+DETECCIÓN
+□ Confirmar el scope: ¿cuántos sistemas afectados?
+□ Identificar el vector inicial
+□ ¿Está en progreso? → Aislar de red INMEDIATAMENTE
+□ Preservar evidencia: snapshot de VMs, dump de RAM si es posible
+
+CONTENCIÓN
+□ Aislar segmento afectado
+□ Bloquear C2 conocidos (IOCs de la familia)
+□ Revocar credenciales comprometidas
+□ Verificar si los backups están intactos y limpios
+
+ANÁLISIS
+□ Identificar la familia de ransomware
+□ Buscar en NoMoreRansom.org → ¿hay decryptor disponible?
+□ Extraer IOCs para hunting en el resto de la red
+□ Determinar si hubo exfiltración previa (doble extorsión)
+
+RECUPERACIÓN
+□ Restaurar desde backup limpio (fecha anterior a compromiso)
+□ Si no hay backup: evaluar opciones de descifrado (pago solo como último recurso)
+□ Parchear el vector inicial antes de restaurar
+□ Monitoreo intensivo post-recuperación
+</code></pre>
+
+<hr>
+
+<h2>Recursos para respuesta a ransomware</h2>
+
+<table><thead><tr>
+<tr><th>Recurso</th><th>URL</th><th>Uso</th></tr>
+</tr></thead><tbody>
+<tr><td>No More Ransom</td><td>nomoreransom.org</td><td>Decryptors gratuitos oficiales</td></tr>
+<tr><td>ID Ransomware</td><td>id-ransomware.malwarehunterteam.com</td><td>Identificar familia por nota/extensión</td></tr>
+<tr><td>Ransomware.live</td><td>ransomware.live</td><td>Monitoreo de víctimas publicadas</td></tr>
+<tr><td>CISA Advisories</td><td>cisa.gov/ransomware</td><td>Alertas y guías oficiales</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>Takeaways finales del analista SOC</h2>
+
+<pre><code>
+IDENTIFICA RÁPIDO:
+Base64   → termina en =, chars A-Za-z0-9+/
+Hex      → solo 0-9 A-F, longitud par
+MD5      → 32 chars hex
+SHA-256  → 64 chars hex
+AES enc  → extensiones cambiadas, I/O alto, CPU alta
+TLS C2   → beaconing regular, cert autofirmado, JA3 conocido
+
+PREGUNTA SIEMPRE:
+¿Tiene clave?         → Cifrado
+¿Longitud fija?       → Hash
+¿Reversible sin clave? → Codificación (Base64, Hex...)
+¿Firmado = seguro?    → NO. Firma válida ≠ binario legítimo
+
+NUNCA OLVIDES:
+- Hashear la evidencia antes de tocarla
+- Dump de RAM antes de apagar una máquina infectada
+- Verificar backups ANTES de necesitarlos
+- Base64 NO es cifrado
+</code></pre>
+
+    <br><br>
+    <a href="../index.html">&#8592; Volver al inicio</a>
+  </div>
+</body>
+</html>

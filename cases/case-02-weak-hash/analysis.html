@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analysis</title>
+  <link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+  <div class="container">
+<h2>Detection</h2>
+<p>Se detecta el uso de un hash MD5 en un proceso de autenticación.</p>
+
+<h2>Technical Analysis</h2>
+<p>El hash corresponde a:</p>
+
+<p>    password</p>
+
+<p>MD5 es un algoritmo obsoleto y vulnerable a:</p>
+<ul>
+<li>ataques de diccionario</li>
+<li>rainbow tables</li>
+</ul>
+
+<h2>Tool Validation</h2>
+<p>Herramientas como John the Ripper permiten recuperar contraseñas rápidamente si son débiles.</p>
+
+<h2>Risk Assessment</h2>
+<p>Uso de MD5 en autenticación representa una debilidad crítica.</p>
+
+<h2>SOC Impact</h2>
+<p>Posible:</p>
+<ul>
+<li>compromiso de credenciales</li>
+<li>acceso no autorizado</li>
+</ul>
+
+<h2>Threat Classification</h2>
+<table><thead><tr>
+<tr><th>Atributo</th><th>Valor</th></tr>
+</tr></thead><tbody>
+<tr><td>Tipo</td><td>Credential Access / Weak Authentication</td></tr>
+<tr><td>Severidad</td><td>Crítica</td></tr>
+<tr><td>Confianza</td><td>Alta (hash identificado y crackeado)</td></tr>
+<tr><td>Vector</td><td>Login attempt con hash MD5 de contraseña débil</td></tr>
+<tr><td>Impacto potencial</td><td>Compromiso total de cuenta administrativa</td></tr>
+</tbody></table>
+
+<h2>MITRE ATT&amp;CK</h2>
+<table><thead><tr>
+<tr><th>Táctica</th><th>Técnica</th><th>ID</th></tr>
+</tr></thead><tbody>
+<tr><td>Credential Access</td><td>Brute Force: Password Cracking</td><td>T1110.002</td></tr>
+<tr><td>Credential Access</td><td>OS Credential Dumping</td><td>T1003</td></tr>
+<tr><td>Defense Evasion</td><td>Use of Weak Cryptography</td><td>T1600</td></tr>
+<tr><td>Initial Access</td><td>Valid Accounts</td><td>T1078</td></tr>
+</tbody></table>
+
+<p>MD5 sin salting permite el uso de rainbow tables precomputadas (T1110.002). El hash <code>5f4dcc3b5aa765d61d8327deb882cf99</code> corresponde a <code>password</code>, lo que implica política de contraseñas nula.</p>
+
+<h2>Analyst Verdict</h2>
+<p><strong>Crítico — Acción inmediata requerida.</strong></p>
+
+<p>La cuenta <code>admin</code> utiliza una contraseña trivial (<code>password</code>) almacenada como MD5 sin salt. El hash es universalmente conocido y figura en todas las rainbow tables públicas. Cualquier atacante con acceso al hash puede autenticarse sin necesidad de fuerza bruta activa.</p>
+
+<p>La IP origen <code>192.168.1.45</code> es interna, lo que eleva la probabilidad de:</p>
+<ul>
+<li>insider threat o sesión comprometida en la red interna</li>
+<li>movimiento lateral post-compromiso inicial</li>
+</ul>
+
+<h2>Recommended Actions</h2>
+<ol>
+<li><strong>Inmediato</strong>: Deshabilitar o cambiar la contraseña de la cuenta <code>admin</code>. Forzar re-autenticación en todas las sesiones activas.</li>
+<li><strong>Inmediato</strong>: Investigar el host <code>192.168.1.45</code> — identificar propietario, revisar logs de acceso y procesos activos.</li>
+<li><strong>Corto plazo</strong>: Auditar todas las contraseñas almacenadas como MD5. Migrar a <strong>bcrypt</strong> (cost ≥ 12) o <strong>Argon2id</strong>.</li>
+<li><strong>Hardening</strong>: Implementar política de contraseñas mínimas (12+ caracteres, complejidad) y MFA para cuentas privilegiadas.</li>
+<li><strong>SIEM</strong>: Alertar sobre cualquier hash MD5 detectado en tráfico de autenticación como indicador de configuración insegura.</li>
+<li><strong>Proceso</strong>: Revisar si otros usuarios tienen hashes MD5 en la base de datos de autenticación.</li>
+</ol>
+
+    <br><br>
+    <a href="../../index.html">&#8592; Volver al inicio</a>
+  </div>
+</body>
+</html>

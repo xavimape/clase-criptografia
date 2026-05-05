@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📋 Cheatsheet — Criptografía para SOC Analyst</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <div class="container">
+<h1>📋 Cheatsheet — Criptografía para SOC Analyst</h1>
+
+<p>Referencia rápida para usar durante análisis de incidentes.</p>
+
+<hr>
+
+<h2>Identificación rápida</h2>
+
+<table><thead><tr>
+<tr><th>Observación</th><th>Tipo</th><th>Acción</th></tr>
+</tr></thead><tbody>
+<tr><td>32 chars hex</td><td>MD5</td><td>Buscar en VirusTotal</td></tr>
+<tr><td>40 chars hex</td><td>SHA-1</td><td>Buscar en VirusTotal</td></tr>
+<tr><td>64 chars hex</td><td>SHA-256</td><td>Buscar en VirusTotal</td></tr>
+<tr><td>128 chars hex</td><td>SHA-512</td><td>Buscar en VirusTotal</td></tr>
+<tr><td>Termina en <code>=</code> o <code>==</code>, chars A-Za-z0-9+/</td><td>Base64</td><td>Decodificar (CyberChef)</td></tr>
+<tr><td>Solo 0-9 A-F, longitud par</td><td>Hex</td><td>Decodificar</td></tr>
+<tr><td><code>%XX</code> en URL</td><td>URL encoding</td><td>URL decode</td></tr>
+<tr><td><code>$2b$</code> o <code>$2a$</code> al inicio</td><td>bcrypt</td><td>No crackeable fácil</td></tr>
+<tr><td><code>$argon2</code> al inicio</td><td>Argon2</td><td>No crackeable fácil</td></tr>
+<tr><td><code>\x41\x42</code></td><td>Hex escapado (shellcode)</td><td>Decodificar</td></tr>
+<tr><td>Alta entropía, no legible</td><td>Cifrado o comprimido</td><td>Analizar cabecera</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>PowerShell — Detección de encoding</h2>
+
+<pre><code>
+powershell -enc &lt;base64&gt;          → ALERTA ALTA
+powershell -EncodedCommand &lt;b64&gt;  → ALERTA ALTA
+FromBase64String(...)             → ALERTA ALTA
+IEX o Invoke-Expression           → ALERTA ALTA
+DownloadString(&#x27;http://...&#x27;)      → ALERTA ALTA
+-NoProfile -NonInteractive        → Sospechoso
+ExecutionPolicy Bypass            → Sospechoso
+</code></pre>
+
+<p><strong>Decodificar:</strong></p>
+<pre><code>
+import base64
+base64.b64decode(payload).decode(&#x27;utf-16-le&#x27;)
+</code></pre>
+
+<hr>
+
+<h2>LOLBins — Binarios legítimos abusados</h2>
+
+<table><thead><tr>
+<tr><th>Binario</th><th>Uso malicioso</th><th>MITRE</th></tr>
+</tr></thead><tbody>
+<tr><td><code>certutil.exe -decode</code></td><td>Decodificar Base64, descargar archivos</td><td>T1140, T1105</td></tr>
+<tr><td><code>mshta.exe http://...</code></td><td>Ejecutar HTA remoto</td><td>T1218.005</td></tr>
+<tr><td><code>regsvr32.exe /s /u /i:http://...</code></td><td>Cargar DLL remota (Squiblydoo)</td><td>T1218.010</td></tr>
+<tr><td><code>rundll32.exe</code></td><td>Ejecutar DLL</td><td>T1218.011</td></tr>
+<tr><td><code>wmic.exe process call create</code></td><td>Ejecución de proceso</td><td>T1047</td></tr>
+<tr><td><code>bitsadmin.exe /transfer</code></td><td>Descarga de archivos</td><td>T1197</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>Hash — Referencia rápida</h2>
+
+<table><thead><tr>
+<tr><th>Algoritmo</th><th>Bits</th><th>Chars hex</th><th>Estado</th></tr>
+</tr></thead><tbody>
+<tr><td>MD5</td><td>128</td><td>32</td><td>❌ Roto (colisiones)</td></tr>
+<tr><td>SHA-1</td><td>160</td><td>40</td><td>❌ Deprecated (SHAttered)</td></tr>
+<tr><td>SHA-256</td><td>256</td><td>64</td><td>✅ Seguro — usar esto</td></tr>
+<tr><td>SHA-512</td><td>512</td><td>128</td><td>✅ Muy seguro</td></tr>
+<tr><td>bcrypt</td><td>—</td><td>~60 chars</td><td>✅ Contraseñas</td></tr>
+<tr><td>Argon2id</td><td>—</td><td>variable</td><td>✅ Contraseñas (mejor)</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>Cifrado — Referencia rápida</h2>
+
+<table><thead><tr>
+<tr><th>Algoritmo</th><th>Tipo</th><th>Bits clave</th><th>Estado</th><th>Uso típico</th></tr>
+</tr></thead><tbody>
+<tr><td>AES-128-CBC</td><td>Simétrico</td><td>128</td><td>✅</td><td>TLS legacy, ransomware antiguo</td></tr>
+<tr><td>AES-256-GCM</td><td>Simétrico</td><td>256</td><td>✅✅</td><td>TLS 1.3, VPNs modernas</td></tr>
+<tr><td>RSA-2048</td><td>Asimétrico</td><td>2048</td><td>✅</td><td>Firmas, intercambio de clave</td></tr>
+<tr><td>RSA-4096</td><td>Asimétrico</td><td>4096</td><td>✅✅</td><td>Alta seguridad</td></tr>
+<tr><td>ECC P-256</td><td>Asimétrico</td><td>256</td><td>✅✅</td><td>TLS 1.3, móviles</td></tr>
+<tr><td>ChaCha20</td><td>Simétrico</td><td>256</td><td>✅✅</td><td>TLS 1.3 alt, IoT</td></tr>
+<tr><td>DES</td><td>Simétrico</td><td>56</td><td>❌ Roto</td><td>No usar</td></tr>
+<tr><td>3DES</td><td>Simétrico</td><td>168</td><td>❌ Deprecated</td><td>No usar</td></tr>
+<tr><td>RC4</td><td>Simétrico</td><td>variable</td><td>❌ Roto</td><td>No usar</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>TLS — Red Flags</h2>
+
+<pre><code>
+❌ CRÍTICO:
+  - Certificado autofirmado (issuer == subject)
+  - JA3 de herramienta ofensiva conocida (Cobalt Strike, Metasploit)
+  - Beaconing regular (stddev del intervalo &lt; 5s)
+  - Puerto no estándar para TLS (no 443/8443)
+
+⚠️ SOSPECHOSO:
+  - Certificado Let&#x27;s Encrypt para dominio random o reciente
+  - SNI sin historial DNS o con typosquatting
+  - Tamaño de paquetes muy uniforme (padding)
+  - Conexiones fuera de horario laboral a IPs desconocidas
+  - Tráfico TLS desde proceso que no debería hacer TLS
+
+✅ NORMAL:
+  - Certificado firmado por CA conocida (DigiCert, Let&#x27;s Encrypt, etc.)
+  - SNI coincide con el dominio esperado del servicio
+  - Tráfico variable en horario laboral
+</code></pre>
+
+<hr>
+
+<h2>Ransomware — Indicadores</h2>
+
+<pre><code>
+DETECCIÓN TEMPRANA:
+  □ CPU alta + I/O de disco sostenidos en proceso desconocido
+  □ Extensiones de archivos cambiando masivamente
+  □ vssadmin / wbadmin ejecutándose (eliminar shadow copies)
+  □ Proceso accediendo a &gt;100 archivos/minuto
+  □ HOW_TO_DECRYPT.txt / README_LOCKED.txt creados
+
+ANÁLISIS FORENSE:
+  □ ¿Qué proceso inició el cifrado? (process tree)
+  □ ¿Cuándo comenzó? (primera extensión .locked)
+  □ ¿Hubo exfiltración previa? (tráfico grande al exterior)
+  □ ¿Qué vector usó? (Sysmon Event ID 1 chain)
+  □ ¿Hay backups limpios disponibles?
+
+RESPUESTA INMEDIATA:
+  1. AISLAR DE LA RED (antes de apagar)
+  2. NO APAGAR → dump de RAM primero
+  3. Verificar alcance: otros sistemas afectados
+  4. Consultar nomoreransom.org para decryptors
+  5. Contactar IR team / management
+</code></pre>
+
+<hr>
+
+<h2>Comandos forenses rápidos</h2>
+
+<pre><code>
+# Hash de archivo
+Get-FileHash archivo.exe -Algorithm SHA256
+
+# Ver firma digital
+Get-AuthenticodeSignature archivo.exe | Format-List *
+
+# Ver conexiones activas
+netstat -ano | findstr ESTABLISHED
+
+# Ver procesos con red
+Get-NetTCPConnection | Where State -eq Established | 
+  ForEach { $p = Get-Process -Id $_.OwningProcess; 
+            &quot;$($_.RemoteAddress):$($_.RemotePort) ← $($p.Name) (PID $($p.Id))&quot; }
+
+# Buscar archivos modificados recientemente
+Get-ChildItem C:\ -Recurse -ErrorAction SilentlyContinue | 
+  Where LastWriteTime -gt (Get-Date).AddHours(-1) |
+  Sort LastWriteTime -Descending | Select -First 50
+
+# Ver shadow copies
+vssadmin list shadows
+</code></pre>
+
+<pre><code>
+# Linux — equivalentes
+sha256sum archivo
+strings binario | grep -i &quot;key\|crypt\|aes\|rsa&quot;
+netstat -tulnp
+lsof -i -n -P | grep ESTABLISHED
+find / -newer /tmp/referencia -mmin -60 2&gt;/dev/null
+</code></pre>
+
+<hr>
+
+<h2>Plataformas de práctica</h2>
+
+<table><thead><tr>
+<tr><th>Plataforma</th><th>URL</th><th>Nivel</th></tr>
+</tr></thead><tbody>
+<tr><td>CryptoHack</td><td>cryptohack.org</td><td>Principiante → Avanzado</td></tr>
+<tr><td>Cryptopals</td><td>cryptopals.com</td><td>Intermedio → Avanzado</td></tr>
+<tr><td>PicoCTF</td><td>picoctf.org</td><td>Principiante</td></tr>
+<tr><td>HackTheBox</td><td>hackthebox.com</td><td>Intermedio → Avanzado</td></tr>
+<tr><td>TryHackMe</td><td>tryhackme.com</td><td>Principiante → Intermedio</td></tr>
+<tr><td>SANS Holiday Hack</td><td>holidayhackchallenge.com</td><td>Todos los niveles</td></tr>
+</tbody></table>
+
+    <br><br>
+    <a href="../index.html">&#8592; Volver al inicio</a>
+  </div>
+</body>
+</html>

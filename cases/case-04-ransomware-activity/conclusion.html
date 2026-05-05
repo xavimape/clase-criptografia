@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conclusion</title>
+  <link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+  <div class="container">
+<h2>Resumen del Caso</h2>
+
+<p>A las 03:42 UTC se detectó actividad ransomware activa en <code>WORKSTATION-14</code>. El proceso malicioso <code>unknown.exe</code>, ejecutado desde <code>AppData\Roaming</code>, cifró 1,847 archivos en menos de 60 segundos, renombró extensiones a <code>.locked</code>, eliminó las shadow copies del sistema, deshabilitó Windows Defender y distribuyó una nota de rescate en 23 directorios. La conexión saliente detectada hacia <code>91.108.4.200:8080</code> sugiere un modelo de doble extorsión con exfiltración previa al cifrado.</p>
+
+<h2>Hallazgos Clave</h2>
+
+<ul>
+<li><strong>Cifrado masivo confirmado</strong>: velocidad e indiscriminación de afectación descartan cualquier proceso legítimo.</li>
+<li><strong>Eliminación de VSS</strong>: acción premeditada para bloquear recuperación nativa de Windows — el atacante conoce el entorno.</li>
+<li><strong>Shares de red afectados</strong>: <code>Finance</code> y <code>HR</code> comprometidos — impacto operacional y regulatorio potencialmente severo.</li>
+<li><strong>Deshabilitación de AV</strong>: indica elevación de privilegios o presencia prolongada en el sistema antes del evento.</li>
+<li><strong>Doble extorsión posible</strong>: conexión saliente activa durante el cifrado es firma de ransomware moderno (LockBit, BlackCat/ALPHV, Cl0p).</li>
+</ul>
+
+<h2>Veredicto Final</h2>
+
+<p><strong>Estado</strong>: Incidente activo — Crítico  </p>
+<p><strong>Clasificación MITRE</strong>: T1486 + T1490 + T1562.001 + T1041  </p>
+<p><strong>Acción recomendada</strong>: Aislamiento inmediato del host, activación del plan de IR, preservación forense, evaluación de alcance lateral y análisis de obligaciones regulatorias de notificación.</p>
+
+<h2>Lección para el Analista SOC</h2>
+
+<blockquote>El ransomware moderno no es un evento puntual — es el acto final de una cadena de compromiso que lleva días o semanas. Para cuando los archivos empiezan a cifrarse, el atacante ya exploró la red, escaló privilegios y exfiltró datos. El trabajo del analista SOC es detectar las fases anteriores (acceso inicial, persistencia, movimiento lateral) antes de llegar a este punto. Si llegamos al cifrado, fallamos en etapas previas — y el análisis post-incidente debe encontrar cuándo y dónde.</blockquote>
+
+    <br><br>
+    <a href="../../index.html">&#8592; Volver al inicio</a>
+  </div>
+</body>
+</html>

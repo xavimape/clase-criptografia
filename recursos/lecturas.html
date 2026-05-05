@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📖 Lecturas y Recursos Recomendados</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <div class="container">
+<h1>📖 Lecturas y Recursos Recomendados</h1>
+
+<hr>
+
+<h2>Libros gratuitos online</h2>
+
+<table><thead><tr>
+<tr><th>Título</th><th>URL</th><th>Nivel</th><th>Enfoque</th></tr>
+</tr></thead><tbody>
+<tr><td><strong>Practical Cryptography for Developers</strong></td><td>cryptobook.nakov.com</td><td>Intermedio</td><td>Implementación práctica, Python</td></tr>
+<tr><td><strong>A Graduate Course in Applied Cryptography</strong></td><td>toc.cryptobook.us</td><td>Avanzado</td><td>Teoría formal</td></tr>
+<tr><td><strong>Crypto 101</strong></td><td>crypto101.io</td><td>Principiante</td><td>Introducción amigable</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>Recursos online gratuitos</h2>
+
+<h3>Para aprender criptografía</h3>
+<ul>
+<li><strong><a href="https://cryptohack.org/">CryptoHack</a></strong> — Plataforma de challenges progresivos. Cubre AES, RSA, ECC, hash, TLS. Muy bien hecho.</li>
+<li><strong><a href="https://cryptopals.com/">The Cryptopals Challenges</a></strong> — Challenges clásicos enfocados en ataques reales (padding oracle, CBC bit flipping, etc.)</li>
+<li><strong><a href="https://www.khanacademy.org/computing/computer-science/cryptography">Khan Academy — Criptografía</a></strong> — Conceptos básicos con explicaciones visuales</li>
+</ul>
+
+<h3>Para SOC / Blue Team</h3>
+<ul>
+<li><strong><a href="https://attack.mitre.org/">MITRE ATT&amp;CK — Cryptography techniques</a></strong> — Buscar T1486 (Data Encrypted), T1059.001 (PowerShell), T1140, etc.</li>
+<li><strong><a href="https://www.sans.org/white-papers/">SANS Reading Room</a></strong> — Papers gratuitos de incident response y forense</li>
+<li><strong><a href="https://www.cisa.gov/news-events/cybersecurity-advisories">CISA Advisories</a></strong> — Alertas sobre ransomware activo con IoCs</li>
+<li><strong><a href="https://www.nomoreransom.org/">No More Ransom</a></strong> — Proyecto conjunto Europol/Intel/Kaspersky con decryptors</li>
+</ul>
+
+<hr>
+
+<h2>Videos y cursos</h2>
+
+<table><thead><tr>
+<tr><th>Recurso</th><th>URL</th><th>Nota</th></tr>
+</tr></thead><tbody>
+<tr><td>Computerphile (YouTube)</td><td>youtube.com/@Computerphile</td><td>Excelentes videos de criptografía, 10-20 min</td></tr>
+<tr><td>SANS Webcasts</td><td>sans.org/webcasts</td><td>Gratuitos, nivel SOC</td></tr>
+<tr><td>TCM Security (YouTube)</td><td>youtube.com/@TCMSecurityAcademy</td><td>Muy práctico, nivel L1</td></tr>
+</tbody></table>
+
+<h3>Videos específicos recomendados de Computerphile</h3>
+<ul>
+<li>&quot;AES Explained&quot; — cómo funciona AES internamente</li>
+<li>&quot;How TLS Works&quot; — handshake visual</li>
+<li>&quot;SHA: Secure Hashing Algorithm&quot; — SHA-256 explicado</li>
+<li>&quot;Diffie Hellman - the Mathematics bit&quot; — DH entendible</li>
+<li>&quot;RSA-OAEP Encryption&quot; — RSA con padding correcto</li>
+</ul>
+
+<hr>
+
+<h2>Papers y documentos técnicos</h2>
+
+<table><thead><tr>
+<tr><th>Documento</th><th>Relevancia</th></tr>
+</tr></thead><tbody>
+<tr><td><a href="https://csrc.nist.gov/publications/detail/sp/800-175b/rev-1/final">NIST SP 800-175B: Guideline for Using Crypto Standards</a></td><td>Guía oficial de qué usar</td></tr>
+<tr><td><a href="https://www.cisa.gov/news-events/alerts/2017/05/12/indicators-associated-wannacry-ransomware">Análisis técnico de WannaCry (US-CERT)</a></td><td>Estudio de caso real</td></tr>
+<tr><td><a href="https://shattered.io/">SHAttered - colisiones en SHA-1</a></td><td>Por qué SHA-1 está roto</td></tr>
+<tr><td><a href="https://eprint.iacr.org/2022/1327.pdf">Hive Ransomware decryptor paper</a></td><td>Cómo rompieron el RNG de Hive</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>MITRE ATT&amp;CK — Técnicas criptográficas relevantes</h2>
+
+<table><thead><tr>
+<tr><th>ID</th><th>Nombre</th><th>Descripción</th></tr>
+</tr></thead><tbody>
+<tr><td><strong>T1486</strong></td><td>Data Encrypted for Impact</td><td>Ransomware — cifrado de datos</td></tr>
+<tr><td><strong>T1140</strong></td><td>Deobfuscate/Decode Files</td><td>certutil -decode, Base64 decode</td></tr>
+<tr><td><strong>T1059.001</strong></td><td>PowerShell</td><td>PowerShell -enc, encoded commands</td></tr>
+<tr><td><strong>T1027</strong></td><td>Obfuscated Files</td><td>Base64, XOR, capas de encoding</td></tr>
+<tr><td><strong>T1218.005</strong></td><td>mshta</td><td>LOLBin execution</td></tr>
+<tr><td><strong>T1218.010</strong></td><td>regsvr32</td><td>LOLBin — Squiblydoo</td></tr>
+<tr><td><strong>T1071.001</strong></td><td>Web Protocols (C2)</td><td>C2 sobre HTTP/HTTPS</td></tr>
+<tr><td><strong>T1573</strong></td><td>Encrypted Channel</td><td>Canal C2 cifrado</td></tr>
+<tr><td><strong>T1036</strong></td><td>Masquerading</td><td>Nombres de proceso que emulan legítimos</td></tr>
+<tr><td><strong>T1003.001</strong></td><td>LSASS Memory</td><td>Mimikatz, volcado de credenciales</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>Glosario rápido</h2>
+
+<table><thead><tr>
+<tr><th>Término</th><th>Definición</th></tr>
+</tr></thead><tbody>
+<tr><td><strong>AES</strong></td><td>Advanced Encryption Standard — cifrado simétrico estándar</td></tr>
+<tr><td><strong>AEAD</strong></td><td>Authenticated Encryption with Associated Data — cifrado + autenticación</td></tr>
+<tr><td><strong>C2 / CnC</strong></td><td>Command and Control — servidor de control del atacante</td></tr>
+<tr><td><strong>CSPRNG</strong></td><td>Cryptographically Secure Pseudo-Random Number Generator</td></tr>
+<tr><td><strong>DH</strong></td><td>Diffie-Hellman — protocolo de intercambio de claves</td></tr>
+<tr><td><strong>ECC</strong></td><td>Elliptic Curve Cryptography — curvas elípticas</td></tr>
+<tr><td><strong>GCM</strong></td><td>Galois/Counter Mode — modo de operación de AES con autenticación</td></tr>
+<tr><td><strong>HMAC</strong></td><td>Hash-based Message Authentication Code</td></tr>
+<tr><td><strong>IOC</strong></td><td>Indicator of Compromise — hash, IP, dominio malicioso</td></tr>
+<tr><td><strong>IV / Nonce</strong></td><td>Initialization Vector — valor único para evitar patrones en AES</td></tr>
+<tr><td><strong>JA3</strong></td><td>Fingerprint del cliente TLS (hash de parámetros ClientHello)</td></tr>
+<tr><td><strong>LOLBin</strong></td><td>Living off the Land Binary — binario legítimo usado maliciosamente</td></tr>
+<tr><td><strong>MITM</strong></td><td>Man-in-the-Middle — intercepción de comunicaciones</td></tr>
+<tr><td><strong>NTLM</strong></td><td>NT LAN Manager — protocolo de autenticación Windows (hash MD4)</td></tr>
+<tr><td><strong>OAEP</strong></td><td>Optimal Asymmetric Encryption Padding — padding seguro para RSA</td></tr>
+<tr><td><strong>PFS</strong></td><td>Perfect Forward Secrecy — claves efímeras por sesión</td></tr>
+<tr><td><strong>PKI</strong></td><td>Public Key Infrastructure — infraestructura de clave pública</td></tr>
+<tr><td><strong>RSA</strong></td><td>Rivest-Shamir-Adleman — algoritmo asimétrico</td></tr>
+<tr><td><strong>Salt</strong></td><td>Valor aleatorio único añadido antes de hashear contraseñas</td></tr>
+<tr><td><strong>SHA</strong></td><td>Secure Hash Algorithm</td></tr>
+<tr><td><strong>SNI</strong></td><td>Server Name Indication — hostname en handshake TLS</td></tr>
+<tr><td><strong>TLS</strong></td><td>Transport Layer Security — protocolo de cifrado en tránsito</td></tr>
+<tr><td><strong>TTPs</strong></td><td>Tactics, Techniques, and Procedures — métodos del atacante</td></tr>
+</tbody></table>
+
+    <br><br>
+    <a href="../index.html">&#8592; Volver al inicio</a>
+  </div>
+</body>
+</html>

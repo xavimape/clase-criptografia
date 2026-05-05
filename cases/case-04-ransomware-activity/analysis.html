@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analysis</title>
+  <link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+  <div class="container">
+<h2>Detection</h2>
+<p>El sistema EDR genera alerta crítica sobre <code>WORKSTATION-14</code> por actividad masiva de modificación de archivos fuera de horario laboral (03:42 UTC). Un proceso no reconocido (<code>unknown.exe</code>) ejecutado desde <code>AppData\Roaming</code> está cifrando archivos en unidades locales y recursos compartidos de red, renombrando extensiones a <code>.locked</code> y eliminando las shadow copies del sistema.</p>
+
+<h2>Behavioral Analysis</h2>
+<p>Indicadores de compromiso identificados:</p>
+
+<ul>
+<li><strong>Alta tasa de escritura</strong>: 1,847 modificaciones de archivos en 60 segundos — imposible en uso legítimo.</li>
+<li><strong>Renombrado de extensiones</strong>: <code>.locked</code> aplicado a documentos en unidades locales y shares de red (<code>Finance</code>, <code>HR</code>).</li>
+<li><strong>Proceso desde AppData</strong>: <code>unknown.exe</code> ejecutado desde <code>C:\Users\jsmith\AppData\Roaming\</code> — ubicación típica de persistencia de malware (evita necesidad de privilegios elevados en escritura).</li>
+<li><strong>Parent process</strong>: <code>explorer.exe</code> como padre sugiere ejecución manual, phishing con doble click, o inyección en proceso de shell.</li>
+<li><strong>Eliminación de shadow copies</strong>: acción deliberada para impedir recuperación sin backup externo (confirma ransomware, no malware genérico).</li>
+<li><strong>Deshabilitación de Windows Defender</strong>: modificación de clave de registro — indica presencia previa en el sistema o ejecución con privilegios de administrador.</li>
+<li><strong>Ransom note</strong>: <code>README_DECRYPT.txt</code> distribuido en 23 directorios — patrón estándar de ransomware moderno.</li>
+<li><strong>Conexión saliente</strong>: <code>91.108.4.200:8080</code> — posible exfiltración de datos previa al cifrado (ransomware de doble extorsión) o beacon de C2.</li>
+</ul>
+
+<h2>Threat Classification</h2>
+<table><thead><tr>
+<tr><th>Atributo</th><th>Valor</th></tr>
+</tr></thead><tbody>
+<tr><td>Tipo</td><td>Ransomware / Double Extortion</td></tr>
+<tr><td>Severidad</td><td>Crítica</td></tr>
+<tr><td>Confianza</td><td>Muy alta (comportamiento ransomware confirmado)</td></tr>
+<tr><td>Vector</td><td>Probable phishing / ejecución manual</td></tr>
+<tr><td>Impacto potencial</td><td>Pérdida de datos, interrupción operacional, daño reputacional, multas regulatorias</td></tr>
+</tbody></table>
+
+<h2>MITRE ATT&amp;CK</h2>
+<table><thead><tr>
+<tr><th>Táctica</th><th>Técnica</th><th>ID</th></tr>
+</tr></thead><tbody>
+<tr><td>Impact</td><td>Data Encrypted for Impact</td><td>T1486</td></tr>
+<tr><td>Impact</td><td>Inhibit System Recovery</td><td>T1490</td></tr>
+<tr><td>Defense Evasion</td><td>Impair Defenses: Disable AV</td><td>T1562.001</td></tr>
+<tr><td>Exfiltration</td><td>Exfiltration Over C2 Channel</td><td>T1041</td></tr>
+<tr><td>Persistence</td><td>Boot or Logon Autostart: Registry Run Keys</td><td>T1547.001</td></tr>
+<tr><td>Execution</td><td>User Execution: Malicious File</td><td>T1204.002</td></tr>
+<tr><td>Discovery</td><td>File and Directory Discovery</td><td>T1083</td></tr>
+<tr><td>Lateral Movement</td><td>SMB/Windows Admin Shares</td><td>T1021.002</td></tr>
+</tbody></table>
+
+<p>La secuencia táctica sigue el patrón clásico de ransomware moderno: acceso inicial → escalada → deshabilitación de defensas → exfiltración → cifrado → extorsión.</p>
+
+<h2>Analyst Verdict</h2>
+<p><strong>Malicioso confirmado — Incidente activo en curso. Activar Plan de Respuesta a Incidentes.</strong></p>
+
+<p>El host <code>WORKSTATION-14</code> está comprometido y el ransomware se encuentra en fase activa de cifrado. La afectación de shares de red (<code>Finance</code>, <code>HR</code>) indica propagación lateral ya en progreso. La conexión saliente a <code>91.108.4.200:8080</code> sugiere posible exfiltración previa de datos (modelo de doble extorsión).</p>
+
+<p><strong>Tiempo crítico</strong>: cada segundo sin contención incrementa el volumen de datos cifrados y el radio de afectación en la red.</p>
+
+<h2>Recommended Actions</h2>
+<h3>Contención Inmediata (0-5 minutos)</h3>
+<ol>
+<li><strong>Aislar</strong> <code>WORKSTATION-14</code> de la red (desconectar cable / bloquear puerto de switch) — NO apagar el equipo para preservar evidencia en memoria.</li>
+<li><strong>Deshabilitar</strong> acceso a shares afectados (<code>Finance</code>, <code>HR</code>) para todos los usuarios hasta evaluación.</li>
+<li><strong>Bloquear</strong> IP <code>91.108.4.200</code> en firewall perimetral y buscar otras conexiones activas hacia ese destino.</li>
+</ol>
+
+<h3>Respuesta a Incidente (5-60 minutos)</h3>
+<ol>
+<li><strong>Activar</strong> el equipo de IR y notificar a management según el plan de comunicación de incidentes.</li>
+<li><strong>Capturar</strong> imagen forense de memoria RAM antes de cualquier reinicio — el binario puede no estar en disco.</li>
+<li><strong>Preservar</strong> logs: EDR, SIEM, Active Directory, proxy, firewall — no modificar nada en el host afectado.</li>
+<li><strong>Identificar</strong> vector de acceso inicial revisando logs de email (phishing) y navegación web del usuario <code>jsmith</code> en las 48 horas previas.</li>
+<li><strong>Evaluar</strong> alcance: identificar todos los hosts que accedieron a <code>C:\Shares\Finance</code> y <code>C:\Shares\HR</code> recientemente.</li>
+</ol>
+
+<h3>Recuperación y Post-Incident</h3>
+<ol>
+<li><strong>Restaurar</strong> desde backup externo verificado — nunca desde shadow copies (ya eliminadas).</li>
+<li><strong>Analizar</strong> <code>unknown.exe</code> en sandbox aislado para identificar familia de ransomware, clave de cifrado usada y posibles IOCs adicionales.</li>
+<li><strong>Notificación legal/regulatoria</strong>: si se confirma exfiltración de datos de <code>HR</code> o <code>Finance</code>, evaluar obligaciones de notificación bajo GDPR/regulación local.</li>
+<li><strong>Hardening post-incidente</strong>: implementar regla de bloqueo de ejecución desde <code>AppData</code>, restringir acceso a VSS, monitoreo de tasa de escritura como alerta temprana.</li>
+</ol>
+
+    <br><br>
+    <a href="../../index.html">&#8592; Volver al inicio</a>
+  </div>
+</body>
+</html>

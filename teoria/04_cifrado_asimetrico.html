@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>04 — Cifrado Asimétrico: RSA y Par de Claves</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <div class="container">
+<h1>04 — Cifrado Asimétrico: RSA y Par de Claves</h1>
+
+<blockquote><strong>Slide relacionado:</strong> 06 de <code>crypto-soc-training.html</code></blockquote>
+
+<hr>
+
+<h2>¿Qué es el cifrado asimétrico?</h2>
+
+<p>A diferencia del simétrico, usa <strong>dos claves matemáticamente relacionadas</strong>:</p>
+<ul>
+<li>Lo que una cifra, <strong>solo la otra puede descifrar</strong></li>
+<li>Conocer la clave pública no permite calcular la privada</li>
+</ul>
+
+<pre><code>
+Clave Pública  → Cifrar / Verificar firmas
+Clave Privada  → Descifrar / Firmar
+</code></pre>
+
+<hr>
+
+<h2>RSA — Rivest–Shamir–Adleman</h2>
+
+<p>El algoritmo asimétrico más usado históricamente. Basado en la dificultad de factorizar números primos grandes.</p>
+
+<h3>¿Por qué es difícil romperlo?</h3>
+
+<pre><code>
+p = 61          (primo)
+q = 53          (primo)
+n = p × q = 3233   (fácil de calcular)
+
+Pero dado n = 3233, encontrar p y q es &quot;difícil&quot;
+Para claves RSA-2048: n tiene 617 dígitos decimales
+Factorizar ese número con la computación actual: imposible en tiempo razonable
+</code></pre>
+
+<h3>Tamaños de clave RSA</h3>
+
+<table><thead><tr>
+<tr><th>Bits</th><th>Estado</th><th>Uso</th></tr>
+</tr></thead><tbody>
+<tr><td>512</td><td>❌ Roto</td><td>No usar</td></tr>
+<tr><td>1024</td><td>❌ Vulnerable</td><td>No usar</td></tr>
+<tr><td>2048</td><td>✅ Seguro</td><td>Mínimo recomendado hoy</td></tr>
+<tr><td>4096</td><td>✅ Muy seguro</td><td>Alta seguridad</td></tr>
+</tbody></table>
+
+<p>El ransomware moderno usa RSA-2048 o RSA-4096.</p>
+
+<hr>
+
+<h2>Flujo de cifrado asimétrico</h2>
+
+<h3>Caso 1: Comunicación segura</h3>
+<pre><code>
+[Alice quiere enviar mensaje secreto a Bob]
+
+1. Bob publica su clave pública (cualquiera puede verla)
+2. Alice cifra el mensaje con la clave pública de Bob
+3. Solo Bob puede descifrar con su clave privada
+</code></pre>
+
+<h3>Caso 2: Firma digital</h3>
+<pre><code>
+[Alice quiere probar que el mensaje es suyo]
+
+1. Alice firma con su clave privada (solo ella puede hacerlo)
+2. Cualquiera verifica con la clave pública de Alice
+3. Si la firma es válida: el mensaje es auténtico y no fue alterado
+</code></pre>
+
+<hr>
+
+<h2>Curvas Elípticas (ECC) — El RSA moderno</h2>
+
+<p>ECC ofrece la misma seguridad que RSA con claves mucho más cortas:</p>
+
+<table><thead><tr>
+<tr><th>Seguridad equivalente</th><th>RSA</th><th>ECC</th></tr>
+</tr></thead><tbody>
+<tr><td>128 bits</td><td>3072 bits</td><td>256 bits</td></tr>
+<tr><td>192 bits</td><td>7680 bits</td><td>384 bits</td></tr>
+<tr><td>256 bits</td><td>15360 bits</td><td>521 bits</td></tr>
+</tbody></table>
+
+<p><strong>Ventajas de ECC:</strong></p>
+<ul>
+<li>Claves más pequeñas → más rápido → menos recursos</li>
+<li>Ideal para dispositivos con limitaciones (IoT, móviles, TLS)</li>
+<li>TLS 1.3 favorece curvas elípticas (P-256, X25519)</li>
+</ul>
+
+<p><strong>Curvas comunes:</strong></p>
+<ul>
+<li>P-256 (NIST) — usada en TLS, iOS, Android</li>
+<li>Curve25519 — usada en SSH, WhatsApp, Signal</li>
+<li>secp256k1 — usada en Bitcoin</li>
+</ul>
+
+<hr>
+
+<h2>Diffie-Hellman — Intercambio de claves</h2>
+
+<p>Permite que dos partes establezcan una clave compartida sobre un canal inseguro sin enviarse la clave nunca.</p>
+
+<pre><code>
+[Alice y Bob acuerdan parámetros públicos: p=23, g=5]
+
+Alice elige secreto a=6:  A = g^a mod p = 5^6 mod 23 = 8   (envía a Bob)
+Bob elige secreto b=15:   B = g^b mod p = 5^15 mod 23 = 19  (envía a Alice)
+
+Alice calcula: s = B^a mod p = 19^6 mod 23 = 2
+Bob calcula:   s = A^b mod p = 8^15 mod 23 = 2
+
+Clave compartida = 2 (sin haberla enviado nunca)
+</code></pre>
+
+<p>Usado en TLS para establecer la clave de sesión AES.</p>
+
+<hr>
+
+<h2>RSA en el contexto del ransomware</h2>
+
+<pre><code>
+ANTES DEL ATAQUE (en el servidor del atacante):
+────────────────────────────────────────────────
+openssl genrsa -out privada.pem 2048
+openssl rsa -in privada.pem -pubout -out publica.pem
+↓
+Clave pública → se embebe en el ejecutable del ransomware
+Clave privada → se guarda en el C2 del atacante
+
+DURANTE EL ATAQUE (en la máquina víctima):
+────────────────────────────────────────────────
+1. El ransomware genera clave AES-256 aleatoria
+2. Cifra todos los archivos con AES-256 (rápido)
+3. Cifra la clave AES con RSA pública embebida
+4. Guarda el blob cifrado en ransomnote o lo envía al C2
+5. Elimina la clave AES de memoria
+
+RESULTADO:
+────────────────────────────────────────────────
+Sin clave RSA privada (en poder del atacante):
+→ No se puede descifrar la clave AES
+→ No se puede descifrar los archivos
+→ Sin pago, sin archivos
+</code></pre>
+
+<hr>
+
+<h2>¿Cuándo es posible recuperar sin pagar?</h2>
+
+<table><thead><tr>
+<tr><th>Situación</th><th>Recuperación posible</th></tr>
+</tr></thead><tbody>
+<tr><td>Clave AES no borrada de memoria (DUMP de RAM)</td><td>Sí — con herramientas forenses</td></tr>
+<tr><td>RSA privada hardcodeada en malware (error del atacante)</td><td>Sí — análisis estático</td></tr>
+<tr><td>Generador de números aleatorios débil (predecible)</td><td>A veces — con mucho esfuerzo</td></tr>
+<tr><td>Backup offline limpio disponible</td><td>Sí — sin necesitar descifrar</td></tr>
+<tr><td>Ninguna de las anteriores</td><td>No — sin clave RSA privada</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>Relevancia SOC 🔍</h2>
+
+<ul>
+<li><strong>Ver en binario:</strong> Strings <code>-----BEGIN PUBLIC KEY-----</code> → el malware tiene embebida clave RSA pública</li>
+<li><strong>En análisis de tráfico:</strong> Handshake TLS con clave efímera (ECDHE) = Perfect Forward Secrecy</li>
+<li><strong>En certificados:</strong> Revisar tamaño de clave — RSA-1024 en cert = legacy, RSA-2048+ = normal</li>
+<li><strong>Post-incidente ransomware:</strong> Siempre intentar dump de RAM antes de apagar la máquina</li>
+</ul>
+
+<hr>
+
+<h2>Próximo tema</h2>
+<p>→ <a href="./05_tls.md">05_tls.md</a> — TLS y detección de C2 en tráfico de red</p>
+
+    <br><br>
+    <a href="../index.html">&#8592; Volver al inicio</a>
+  </div>
+</body>
+</html>

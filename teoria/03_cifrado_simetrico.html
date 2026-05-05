@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>03 — Cifrado Simétrico: AES y el Ransomware</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <div class="container">
+<h1>03 — Cifrado Simétrico: AES y el Ransomware</h1>
+
+<blockquote><strong>Slide relacionado:</strong> 05 de <code>crypto-soc-training.html</code></blockquote>
+
+<hr>
+
+<h2>¿Qué es el cifrado simétrico?</h2>
+
+<p>Una <strong>sola clave</strong> sirve para cifrar y descifrar. Quien tenga la clave puede hacer ambas cosas.</p>
+
+<pre><code>
+Texto plano + Clave → [AES] → Texto cifrado
+Texto cifrado + Clave → [AES] → Texto plano
+</code></pre>
+
+<hr>
+
+<h2>AES — Advanced Encryption Standard</h2>
+
+<p>AES es el estándar de cifrado simétrico adoptado por NIST en 2001. Es el más usado en el mundo.</p>
+
+<h3>Características</h3>
+
+<table><thead><tr>
+<tr><th>Parámetro</th><th>Valores posibles</th></tr>
+</tr></thead><tbody>
+<tr><td>Tamaño de clave</td><td>128, 192 o 256 bits</td></tr>
+<tr><td>Tamaño de bloque</td><td>128 bits (fijo)</td></tr>
+<tr><td>Velocidad</td><td>Muy alta (hardware acceleration en CPUs modernas)</td></tr>
+<tr><td>Estado</td><td>✅ Seguro — sin ataques prácticos conocidos</td></tr>
+</tbody></table>
+
+<h3>AES-128 vs AES-256</h3>
+
+<ul>
+<li><strong>AES-128:</strong> 128 bits de clave → 2^128 combinaciones posibles</li>
+<li><strong>AES-256:</strong> 256 bits de clave → 2^256 combinaciones posibles</li>
+<li>Ambos son seguros para uso actual. AES-256 es preferido para datos sensibles.</li>
+<li>El ransomware usa AES-256 por velocidad y seguridad.</li>
+</ul>
+
+<hr>
+
+<h2>Modos de operación</h2>
+
+<p>AES cifra bloques de 128 bits. Los modos determinan cómo se encadenan bloques.</p>
+
+<h3>ECB — Electronic Codebook (❌ No usar)</h3>
+
+<pre><code>
+Bloque 1 → AES(clave) → Bloque cifrado 1
+Bloque 2 → AES(clave) → Bloque cifrado 2
+</code></pre>
+
+<p><strong>Problema:</strong> Bloques iguales producen texto cifrado igual. Las imágenes cifradas con ECB muestran patrones (el famoso &quot;ECB penguin&quot;).</p>
+
+<h3>CBC — Cipher Block Chaining (✅ Común)</h3>
+
+<pre><code>
+Bloque 1 XOR IV → AES(clave) → Bloque cifrado 1
+Bloque 2 XOR Bloque cifrado 1 → AES(clave) → Bloque cifrado 2
+</code></pre>
+
+<p>Requiere un <strong>IV (Initialization Vector)</strong> aleatorio. El IV no es secreto pero sí debe ser único.</p>
+
+<h3>CTR — Counter Mode (✅ Moderno)</h3>
+
+<p>Convierte AES en un stream cipher. Usa un contador incremental. Permite cifrado paralelo.</p>
+
+<h3>GCM — Galois/Counter Mode (✅ Recomendado hoy)</h3>
+
+<p>CTR + autenticación. Provee <strong>AEAD</strong> (Authenticated Encryption with Associated Data). Detecta manipulación del texto cifrado. Usado en TLS 1.3.</p>
+
+<hr>
+
+<h2>AES en Ransomware — Cómo funciona</h2>
+
+<p>El ransomware combina AES (velocidad) con RSA (distribución de clave). AES sola no alcanza porque requiere que la víctima tenga la clave para descifrar.</p>
+
+<pre><code>
+FLUJO TÍPICO DE RANSOMWARE:
+
+[Atacante antes del ataque]
+1. Genera par de claves RSA: pública (embebida en malware) + privada (guarda en C2)
+
+[En la máquina víctima]
+2. Malware genera clave AES-256 aleatoria única para esta víctima
+3. Cifra todos los archivos con AES-256
+   archivo.docx → archivo.docx.encrypted (en segundos)
+4. Cifra la clave AES con la RSA pública del atacante
+   clave_AES_256 → clave_cifrada_RSA (enviada al C2 o dejada en ransomnote)
+5. Borra la clave AES de memoria
+
+[Resultado]
+Sin clave RSA privada → imposible recuperar clave AES → imposible descifrar archivos
+</code></pre>
+
+<h3>¿Por qué AES y no RSA para cifrar archivos?</h3>
+
+<ul>
+<li>RSA es <strong>muy lento</strong> para datos grandes (diseñado para cifrar datos pequeños)</li>
+<li>AES cifra 1 GB en milisegundos — necesario para cifrar miles de archivos rápido</li>
+<li>La combinación AES (velocidad) + RSA (distribución segura de clave) es óptima</li>
+</ul>
+
+<hr>
+
+<h2>Indicadores de ransomware en actividad</h2>
+
+<pre><code>
+# Comportamiento observable:
+- CPU al 100% de forma sostenida (cifrado masivo)
+- I/O de disco muy alto sin proceso conocido
+- Extensiones de archivo cambiadas (.encrypted, .locked, .crypt)
+- Archivos README o RANSOMNOTE.txt creados en cada carpeta
+- Múltiples accesos a archivos en tiempo corto (un proceso tocando miles)
+- Tráfico de red al C2 para entregar clave AES cifrada
+
+# En el SIEM/EDR:
+process → acceso masivo a archivos (&gt;100 en &lt;1 min)
+process → modificación de extensiones
+process → creación de archivos de texto en múltiples dirs
+</code></pre>
+
+<hr>
+
+<h2>ChaCha20 — Alternativa moderna a AES</h2>
+
+<p>Usado por malware en plataformas sin aceleración hardware para AES (IoT, algunos móviles).</p>
+
+<ul>
+<li>Stream cipher, muy rápido en software</li>
+<li>Usado en TLS 1.3 como alternativa a AES-GCM</li>
+<li>El ransomware moderno (ej. REvil) lo incorpora</li>
+</ul>
+
+<hr>
+
+<h2>Relevancia SOC 🔍</h2>
+
+<table><thead><tr>
+<tr><th>Situación</th><th>Análisis</th></tr>
+</tr></thead><tbody>
+<tr><td>Proceso con I/O masivo y extensiones .encrypted</td><td>Ransomware activo — aislar inmediatamente</td></tr>
+<tr><td>Binario con strings &quot;AES&quot;, &quot;CryptEncrypt&quot; importando advapi32.dll</td><td>Capacidades de cifrado — alta sospecha</td></tr>
+<tr><td>Clave AES hardcodeada en malware</td><td>Posible descifrado de datos — extraer clave para recovery</td></tr>
+<tr><td>Archivo <code>.crypt</code> sin nota de rescate</td><td>Puede ser wiper disfrazado — verificar si hay clave válida</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>Próximo tema</h2>
+<p>→ <a href="./04_cifrado_asimetrico.md">04_cifrado_asimetrico.md</a> — RSA y par de claves</p>
+
+    <br><br>
+    <a href="../index.html">&#8592; Volver al inicio</a>
+  </div>
+</body>
+</html>

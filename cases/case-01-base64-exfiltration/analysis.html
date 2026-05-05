@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analysis</title>
+  <link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+  <div class="container">
+<h2>Detection</h2>
+<p>Se identifica un parámetro <code>payload</code> con contenido codificado en Base64 dentro de una request HTTP.</p>
+
+<h2>Decoding</h2>
+<p>U2VjcmV0UGF5bG9hZA== → SecretPayload</p>
+
+<h2>Behavioral Analysis</h2>
+<p>El uso de Base64 en parámetros HTTP no es anómalo por sí solo, pero combinado con:</p>
+<ul>
+<li>uso de curl</li>
+<li>dominio sospechoso</li>
+<li>endpoint genérico</li>
+</ul>
+
+<p>indica posible intento de exfiltración de datos.</p>
+
+<h2>Threat Context</h2>
+<p>Técnica común en:</p>
+<ul>
+<li>malware ligero</li>
+<li>scripts de exfiltración</li>
+<li>C2 encubierto</li>
+</ul>
+
+<h2>SOC Assessment</h2>
+<p>Severidad: Media-Alta  </p>
+<p>Requiere correlación con:</p>
+<ul>
+<li>volumen de tráfico</li>
+<li>frecuencia</li>
+<li>origen del host</li>
+</ul>
+
+<h2>Threat Classification</h2>
+<table><thead><tr>
+<tr><th>Atributo</th><th>Valor</th></tr>
+</tr></thead><tbody>
+<tr><td>Tipo</td><td>Data Exfiltration / C2 Communication</td></tr>
+<tr><td>Severidad</td><td>Media-Alta</td></tr>
+<tr><td>Confianza</td><td>Media (requiere correlación adicional)</td></tr>
+<tr><td>Vector</td><td>HTTP outbound / parámetro GET codificado</td></tr>
+<tr><td>Impacto potencial</td><td>Filtración de datos sensibles</td></tr>
+</tbody></table>
+
+<h2>MITRE ATT&amp;CK</h2>
+<table><thead><tr>
+<tr><th>Táctica</th><th>Técnica</th><th>ID</th></tr>
+</tr></thead><tbody>
+<tr><td>Exfiltration</td><td>Exfiltration Over Web Service</td><td>T1567</td></tr>
+<tr><td>Command and Control</td><td>Web Protocols</td><td>T1071.001</td></tr>
+<tr><td>Defense Evasion</td><td>Obfuscated Files or Information</td><td>T1027</td></tr>
+</tbody></table>
+
+<p>El uso de Base64 en parámetros HTTP es una técnica de ofuscación básica (T1027) empleada para evadir detección por DLP o IDS que no inspeccionan contenido codificado.</p>
+
+<h2>Analyst Verdict</h2>
+<p><strong>Sospechoso — Escalado para investigación.</strong></p>
+
+<p>Los indicadores combinados (curl, dominio no reconocido, endpoint genérico, payload codificado) constituyen un patrón consistente con exfiltración ligera o beacon de C2. No es posible confirmar compromiso sin correlacionar con:</p>
+<ul>
+<li>historial de conexiones del host fuente</li>
+<li>registros DNS para <code>suspicious-domain.com</code></li>
+<li>posible proceso padre de la llamada curl</li>
+</ul>
+
+<p>Se recomienda no descartar como falso positivo hasta completar correlación.</p>
+
+<h2>Recommended Actions</h2>
+<ol>
+<li><strong>Inmediato</strong>: Bloquear dominio <code>suspicious-domain.com</code> en proxy/firewall y alertar al equipo de threat intel.</li>
+<li><strong>Corto plazo</strong>: Aislar el host origen para análisis forense si se confirman conexiones recurrentes.</li>
+<li><strong>Investigación</strong>: Revisar logs de EDR/endpoint para identificar el proceso que generó la solicitud curl.</li>
+<li><strong>SIEM</strong>: Crear regla de detección para peticiones HTTP GET con parámetros en Base64 hacia dominios externos no categorizados.</li>
+<li><strong>Hardening</strong>: Revisar políticas de egress filtering para bloquear herramientas de transferencia (curl, wget) desde hosts de usuario final.</li>
+</ol>
+
+    <br><br>
+    <a href="../../index.html">&#8592; Volver al inicio</a>
+  </div>
+</body>
+</html>

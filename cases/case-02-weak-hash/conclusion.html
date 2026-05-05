@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conclusion</title>
+  <link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+  <div class="container">
+<h2>Resumen del Caso</h2>
+
+<p>Se detectó un intento de autenticación de la cuenta <code>admin</code> con un hash MD5 correspondiente a la contraseña <code>password</code>, originado desde una IP interna (<code>192.168.1.45</code>). MD5 es un algoritmo de hash de propósito general, inadecuado para el almacenamiento de contraseñas, ya que puede ser revertido en segundos mediante rainbow tables o herramientas como John the Ripper.</p>
+
+<h2>Hallazgos Clave</h2>
+
+<ul>
+<li>El hash <code>5f4dcc3b5aa765d61d8327deb882cf99</code> es MD5 de <code>password</code> — contraseña de máxima debilidad.</li>
+<li>No se detecta uso de salt, lo que hace el hash directamente buscable en bases de datos públicas (e.g., crackstation.net).</li>
+<li>El origen interno sugiere acceso desde la red corporativa, ampliando el vector de amenaza.</li>
+<li>La combinación cuenta privilegiada + contraseña trivial + algoritmo obsoleto representa riesgo crítico compuesto.</li>
+</ul>
+
+<h2>Veredicto Final</h2>
+
+<p><strong>Estado</strong>: Crítico — Acción inmediata requerida  </p>
+<p><strong>Clasificación MITRE</strong>: T1110.002 (Password Cracking) + T1078 (Valid Accounts)  </p>
+<p><strong>Acción recomendada</strong>: Cambio inmediato de credenciales, migración a bcrypt/Argon2id, auditoría completa de hashes en la base de datos de autenticación.</p>
+
+<h2>Lección para el Analista SOC</h2>
+
+<blockquote>Un hash no es una contraseña segura por el hecho de estar hasheado. MD5 fue diseñado para velocidad, no para seguridad. Un analista debe saber distinguir entre algoritmos de integridad (MD5, SHA-256) y algoritmos de derivación de contraseñas (bcrypt, Argon2). Solo los segundos son apropiados para autenticación.</blockquote>
+
+    <br><br>
+    <a href="../../index.html">&#8592; Volver al inicio</a>
+  </div>
+</body>
+</html>

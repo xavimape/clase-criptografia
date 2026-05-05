@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analysis</title>
+  <link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+  <div class="container">
+<h2>Detection</h2>
+<p>Se detecta sesión TLS activa desde host interno (<code>10.0.0.87</code>) hacia IP externa (<code>185.220.101.42</code>) en el dominio <code>unknown-domain.xyz</code>. El certificado presentado es autofirmado, sin CA reconocida, y el fingerprint JA3 no coincide con patrones de navegadores o clientes legítimos conocidos.</p>
+
+<h2>Technical Analysis</h2>
+<p>Características anómalas identificadas:</p>
+
+<ul>
+<li><strong>Certificado autofirmado</strong>: sin cadena de confianza válida. Ningún servicio legítimo corporativo opera bajo estas condiciones.</li>
+<li><strong>Ausencia de CA reconocida</strong>: descarta uso de servicios cloud o SaaS legítimos.</li>
+<li><strong>JA3 Fingerprint inusual</strong>: <code>769,47-53-5-10-49161-49162-49171-49172-50-56-19-4,0-10-11,23-24,0</code> — patrón no asociado a navegadores estándar. Consistente con clientes TLS personalizados usados en frameworks C2 (Cobalt Strike, Metasploit, Sliver).</li>
+<li><strong>JA3S Fingerprint</strong>: respuesta del servidor (<code>769,47,0</code>) indica configuración mínima, típica de servidores de C2 ligeros.</li>
+<li><strong>Duración de sesión</strong>: 4 minutos 22 segundos con 142 KB transferidos — consistente con beaconing periódico.</li>
+<li><strong>IP destino</strong>: <code>185.220.101.42</code> asociada históricamente a nodos Tor exit y hosting anónimo.</li>
+</ul>
+
+<h2>Threat Classification</h2>
+<table><thead><tr>
+<tr><th>Atributo</th><th>Valor</th></tr>
+</tr></thead><tbody>
+<tr><td>Tipo</td><td>Command and Control (C2) / Encrypted Channel</td></tr>
+<tr><td>Severidad</td><td>Alta</td></tr>
+<tr><td>Confianza</td><td>Alta (múltiples indicadores convergentes)</td></tr>
+<tr><td>Vector</td><td>TLS outbound / certificado autofirmado / JA3</td></tr>
+<tr><td>Impacto potencial</td><td>Control remoto del endpoint, exfiltración</td></tr>
+</tbody></table>
+
+<h2>MITRE ATT&amp;CK</h2>
+<table><thead><tr>
+<tr><th>Táctica</th><th>Técnica</th><th>ID</th></tr>
+</tr></thead><tbody>
+<tr><td>Command and Control</td><td>Application Layer Protocol: Web</td><td>T1071.001</td></tr>
+<tr><td>Command and Control</td><td>Encrypted Channel: Asymmetric Crypto</td><td>T1573.002</td></tr>
+<tr><td>Command and Control</td><td>Non-Standard Port</td><td>T1571</td></tr>
+<tr><td>Defense Evasion</td><td>Masquerading</td><td>T1036</td></tr>
+<tr><td>Exfiltration</td><td>Exfiltration Over C2 Channel</td><td>T1041</td></tr>
+</tbody></table>
+
+<p>El canal TLS cifrado (T1573.002) es la técnica predilecta de frameworks C2 modernos para evadir inspección de tráfico. El uso de certificados autofirmados con JA3 fingerprints personalizados dificulta la detección por reglas de firma estáticas.</p>
+
+<h2>Analyst Verdict</h2>
+<p><strong>Sospechoso alto — Escalar a Tier 2 / Threat Hunting inmediato.</strong></p>
+
+<p>La convergencia de indicadores (certificado autofirmado + JA3 anómalo + IP asociada a infraestructura anónima + duración de sesión consistente con beaconing) configura un patrón de alta probabilidad de C2 activo. El host <code>10.0.0.87</code> debe considerarse comprometido hasta que se descarte con evidencia forense.</p>
+
+<p>No se puede confirmar el payload sin inspección de memoria del proceso, pero el patrón de tráfico es suficiente para justificar contención.</p>
+
+<h2>Recommended Actions</h2>
+<ol>
+<li><strong>Inmediato</strong>: Aislar host <code>10.0.0.87</code> de la red — revocar acceso a recursos internos y bloquear egress hacia <code>185.220.101.42</code>.</li>
+<li><strong>Inmediato</strong>: Bloquear dominio <code>unknown-domain.xyz</code> y IP destino en firewall perimetral y proxy.</li>
+<li><strong>Forense</strong>: Capturar imagen de memoria RAM del endpoint antes de apagarlo — el implante C2 puede residir solo en memoria.</li>
+<li><strong>Investigación</strong>: Identificar el proceso responsable de la conexión TLS mediante EDR (revisar árbol de procesos, parent process, hash del ejecutable).</li>
+<li><strong>Threat Hunting</strong>: Buscar el mismo JA3 fingerprint en todos los hosts de la red durante los últimos 30 días.</li>
+<li><strong>SIEM</strong>: Crear regla de detección para sesiones TLS con certificados autofirmados + JA3 no whitelisted hacia destinos externos.</li>
+<li><strong>Threat Intel</strong>: Compartir IOCs (<code>185.220.101.42</code>, <code>unknown-domain.xyz</code>, JA3 hash) con plataforma TIP (MISP / OpenCTI).</li>
+</ol>
+
+    <br><br>
+    <a href="../../index.html">&#8592; Volver al inicio</a>
+  </div>
+</body>
+</html>

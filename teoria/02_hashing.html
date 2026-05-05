@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>02 — Hashing: La Huella Digital</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <div class="container">
+<h1>02 — Hashing: La Huella Digital</h1>
+
+<blockquote><strong>Slide relacionado:</strong> 04 de <code>crypto-soc-training.html</code></blockquote>
+
+<hr>
+
+<h2>¿Qué es una función hash?</h2>
+
+<p>Una función hash toma un input de cualquier tamaño y produce un output de <strong>longitud fija</strong> (el &quot;digest&quot; o &quot;hash&quot;). Es matemáticamente irreversible — no existe &quot;deshacer&quot; un hash.</p>
+
+<pre><code>
+SHA-256(&quot;Hello&quot;)  = 185f8db32921bd46d11b5c2d8f950e6b56e8d9b4d7b40aea3...
+SHA-256(&quot;hello&quot;)  = 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73...
+                                       ↑
+                          Un solo carácter diferente = hash completamente distinto
+</code></pre>
+
+<p>Esta propiedad se llama <strong>efecto avalancha</strong>.</p>
+
+<hr>
+
+<h2>Propiedades de una función hash criptográfica</h2>
+
+<table><thead><tr>
+<tr><th>Propiedad</th><th>Descripción</th></tr>
+</tr></thead><tbody>
+<tr><td><strong>Determinismo</strong></td><td>Mismo input → siempre mismo output</td></tr>
+<tr><td><strong>Velocidad</strong></td><td>Rápido de calcular</td></tr>
+<tr><td><strong>Efecto avalancha</strong></td><td>Cambio mínimo en input → cambio total en output</td></tr>
+<tr><td><strong>Pre-imagen resistente</strong></td><td>Dado un hash H, imposible encontrar x tal que hash(x)=H</td></tr>
+<tr><td><strong>Segunda pre-imagen resistente</strong></td><td>Dado x, imposible encontrar y≠x tal que hash(x)=hash(y)</td></tr>
+<tr><td><strong>Resistencia a colisiones</strong></td><td>Imposible encontrar x,y tal que hash(x)=hash(y)</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>Algoritmos principales</h2>
+
+<h3>MD5 — 128 bits (32 chars hex)</h3>
+<pre><code>
+MD5(&quot;clase-criptografia&quot;) = a3c2f1e9b7d4...  (32 caracteres hex)
+</code></pre>
+<ul>
+<li><strong>Estado:</strong> ❌ Roto criptográficamente (colisiones conocidas)</li>
+<li><strong>Velocidad:</strong> Muy rápido</li>
+<li><strong>Uso actual en SOC:</strong> IOCs de malware (VirusTotal lo acepta), verificación básica de integridad cuando no importa la seguridad</li>
+<li><strong>Por qué no usar para seguridad:</strong> Se pueden generar dos archivos distintos con el mismo MD5</li>
+</ul>
+
+<h3>SHA-1 — 160 bits (40 chars hex)</h3>
+<pre><code>
+SHA-1(&quot;clase&quot;) = a94a8fe5ccb19ba61c4c0873d391e987982fbbd3
+</code></pre>
+<ul>
+<li><strong>Estado:</strong> ❌ Deprecated (Google rompió SHA-1 en 2017 con SHAttered)</li>
+<li><strong>Uso actual:</strong> Legacy únicamente. Algunos IOCs antiguos. Certificados viejos.</li>
+<li><strong>Nunca usar</strong> para firmas nuevas o almacenamiento de contraseñas</li>
+</ul>
+
+<h3>SHA-256 — 256 bits (64 chars hex)</h3>
+<pre><code>
+SHA-256(&quot;clase&quot;) = ...64 caracteres hex...
+</code></pre>
+<ul>
+<li><strong>Estado:</strong> ✅ Seguro, estándar actual</li>
+<li><strong>Uso:</strong> IOCs, hashes de evidencia forense, TLS, firmas digitales, Bitcoin</li>
+<li><strong>Este es el que vas a ver más en un SOC</strong></li>
+</ul>
+
+<h3>SHA-512 — 512 bits (128 chars hex)</h3>
+<ul>
+<li><strong>Estado:</strong> ✅ Muy seguro</li>
+<li><strong>Uso:</strong> Alta seguridad, almacenamiento de contraseñas (junto con sal)</li>
+</ul>
+
+<hr>
+
+<h2>Uso en Forense: Cadena de Custodia</h2>
+
+<p>El hash garantiza que la evidencia no fue modificada. Es el pilar de la integridad forense.</p>
+
+<pre><code>
+1. Se obtiene el disco/imagen
+         ↓
+2. Se calcula el hash SHA-256 del original
+   SHA-256(imagen_original) = &quot;abc123...&quot;
+         ↓
+3. Se trabaja con una COPIA, nunca el original
+         ↓
+4. Cualquier modificación rompe el hash
+   SHA-256(imagen_modificada) = &quot;xyz789...&quot; ≠ &quot;abc123...&quot;
+         ↓
+5. Si los hashes coinciden, la evidencia es íntegra
+</code></pre>
+
+<p><strong>Herramientas de hashing forense:</strong></p>
+<ul>
+<li><code>sha256sum archivo.img</code> (Linux)</li>
+<li><code>Get-FileHash archivo.img -Algorithm SHA256</code> (PowerShell)</li>
+<li><code>md5sum</code>, <code>sha1sum</code></li>
+<li>FTK Imager, Autopsy (automático)</li>
+</ul>
+
+<hr>
+
+<h2>Uso en Threat Intel: IOCs de malware</h2>
+
+<p>Los hashes son los IOCs más confiables porque son únicos por archivo.</p>
+
+<pre><code>
+# Estructura típica en un reporte de amenaza:
+Indicadores de Compromiso (IOCs):
+  MD5:    d41d8cd98f00b204e9800998ecf8427e
+  SHA-1:  da39a3ee5e6b4b0d3255bfef95601890afd80709
+  SHA-256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+</code></pre>
+
+<p><strong>Plataformas donde buscar hashes:</strong></p>
+<ul>
+<li><a href="https://www.virustotal.com">VirusTotal</a> — el más usado</li>
+<li><a href="https://bazaar.abuse.ch">MalwareBazaar</a> — malware samples</li>
+<li><a href="https://any.run">Any.run</a> — sandboxing</li>
+<li><a href="https://www.hybrid-analysis.com">Hybrid Analysis</a></li>
+</ul>
+
+<hr>
+
+<h2>HMAC — Hash con clave</h2>
+
+<p>HMAC (Hash-based Message Authentication Code) combina un hash con una clave secreta para verificar tanto <strong>integridad</strong> como <strong>autenticidad</strong>.</p>
+
+<pre><code>
+HMAC-SHA256(mensaje, clave_secreta) = hash_autenticado
+</code></pre>
+
+<p>Uso: APIs REST, JWT (JSON Web Tokens), verificación de webhooks.</p>
+
+<hr>
+
+<h2>Ataques a funciones hash</h2>
+
+<h3>Rainbow Tables</h3>
+<ul>
+<li>Tablas precomputadas de hash(contraseña) → contraseña</li>
+<li><strong>Defensa:</strong> Usar <strong>sal</strong> (salt) — valor aleatorio único por contraseña</li>
+<li><code>SHA-256(contraseña + sal)</code> hace inútiles las rainbow tables</li>
+</ul>
+
+<h3>Fuerza Bruta</h3>
+<ul>
+<li>Probar millones de combinaciones</li>
+<li>MD5 puede probarse a 10+ billones/segundo en GPU</li>
+<li><strong>Defensa:</strong> Usar bcrypt, scrypt, Argon2 (lentos por diseño)</li>
+</ul>
+
+<h3>Colisiones</h3>
+<ul>
+<li>Dos inputs distintos con el mismo hash</li>
+<li>MD5 y SHA-1 son vulnerables</li>
+<li>SHA-256: ninguna colisión conocida</li>
+</ul>
+
+<hr>
+
+<h2>Cómo identificar hashes a simple vista</h2>
+
+<table><thead><tr>
+<tr><th>Hash</th><th>Longitud</th><th>Ejemplo</th></tr>
+</tr></thead><tbody>
+<tr><td>MD5</td><td>32 chars hex</td><td><code>d41d8cd98f00b204e9800998ecf8427e</code></td></tr>
+<tr><td>SHA-1</td><td>40 chars hex</td><td><code>da39a3ee5e6b4b0d3255bfef95601890afd80709</code></td></tr>
+<tr><td>SHA-256</td><td>64 chars hex</td><td><code>e3b0c44298fc1c149...</code></td></tr>
+<tr><td>SHA-512</td><td>128 chars hex</td><td><code>cf83e1357eefb8bdf...</code></td></tr>
+<tr><td>bcrypt</td><td>~60 chars, empieza con <code>$2b$</code></td><td><code>$2b$10$N9qo8uLOick...</code></td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>Relevancia SOC 🔍</h2>
+
+<ul>
+<li><strong>Alert de AV:</strong> Siempre extraer el hash SHA-256 del binario detectado y buscarlo en VT</li>
+<li><strong>Evidencia forense:</strong> Hashear todo antes de manipular. Documentar.</li>
+<li><strong>Contraseñas en DB comprometida:</strong> Si son MD5 sin sal, están rotas. Si son bcrypt, hay tiempo.</li>
+<li><strong>IOC sharing:</strong> Siempre incluir SHA-256 en los reportes, MD5 es opcional (legacy)</li>
+</ul>
+
+<hr>
+
+<h2>Próximo tema</h2>
+<p>→ <a href="./03_cifrado_simetrico.md">03_cifrado_simetrico.md</a> — AES y el ransomware</p>
+
+    <br><br>
+    <a href="../index.html">&#8592; Volver al inicio</a>
+  </div>
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>00 — Fundamentos: ¿Qué es Criptografía?</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <div class="container">
+<h1>00 — Fundamentos: ¿Qué es Criptografía?</h1>
+
+<blockquote><strong>Slides relacionados:</strong> 01 y 02 de <code>crypto-soc-training.html</code></blockquote>
+
+<hr>
+
+<h2>¿Por qué importa en un SOC?</h2>
+
+<p>Como analista vas a ver constantemente datos que &quot;parecen&quot; cifrados pero no lo son, o alerts que malinterpretan encoding como cifrado. Entender la diferencia no es opcional — es la base de todo análisis de malware, forense y detección de red.</p>
+
+<hr>
+
+<h2>El triángulo que todo analista debe conocer</h2>
+
+<pre><code>
+         CODIFICACIÓN
+        (no hay clave)
+              ↑
+              |
+    ¿Reversible sin clave?
+              |
+    SÍ ←-----+----→ NO
+    |                  |
+CODIFICACIÓN        ¿Longitud fija?
+(Base64, Hex)          |
+                  SÍ ←-+→ NO
+                  |        |
+                HASH    CIFRADO
+             (SHA-256)   (AES, RSA)
+</code></pre>
+
+<h3>Codificación</h3>
+<ul>
+<li><strong>Definición:</strong> Transforma datos a otro formato para compatibilidad o transmisión.</li>
+<li><strong>Reversible:</strong> Sí, siempre. Sin clave.</li>
+<li><strong>Seguridad:</strong> Ninguna. No protege nada.</li>
+<li><strong>Ejemplos:</strong> Base64, Hex, URL encoding, ASCII, UTF-8</li>
+<li><strong>Error común en SOC:</strong> Ver Base64 y reportar &quot;datos cifrados&quot; ← crítico</li>
+</ul>
+
+<h3>Hash (Función resumen)</h3>
+<ul>
+<li><strong>Definición:</strong> Función matemática de una sola vía. Entrada → huella de longitud fija.</li>
+<li><strong>Reversible:</strong> No. Nunca. (Sin rainbow tables o fuerza bruta)</li>
+<li><strong>Seguridad:</strong> Integridad, no confidencialidad.</li>
+<li><strong>Propiedad clave:</strong> Efecto avalancha — un bit diferente = hash completamente distinto.</li>
+<li><strong>Ejemplos:</strong> MD5 (128 bits), SHA-1 (160 bits), SHA-256 (256 bits)</li>
+<li><strong>Uso en SOC:</strong> IOCs de malware, verificación de evidencia forense</li>
+</ul>
+
+<h3>Cifrado</h3>
+<ul>
+<li><strong>Definición:</strong> Transforma datos con una clave. Requiere la clave para revertir.</li>
+<li><strong>Reversible:</strong> Sí, pero solo con la clave correcta.</li>
+<li><strong>Seguridad:</strong> Confidencialidad real.</li>
+<li><strong>Tipos:</strong> Simétrico (misma clave) o Asimétrico (par de claves)</li>
+<li><strong>Ejemplos:</strong> AES-256, RSA-2048, ChaCha20</li>
+<li><strong>Uso en SOC:</strong> Comunicaciones C2 (TLS), ransomware, exfiltración</li>
+</ul>
+
+<hr>
+
+<h2>Tabla comparativa rápida</h2>
+
+<table><thead><tr>
+<tr><th>Propiedad</th><th>Codificación</th><th>Hash</th><th>Cifrado</th></tr>
+</tr></thead><tbody>
+<tr><td>Requiere clave</td><td>❌</td><td>❌</td><td>✅</td></tr>
+<tr><td>Reversible</td><td>✅</td><td>❌</td><td>✅ (con clave)</td></tr>
+<tr><td>Longitud fija output</td><td>❌</td><td>✅</td><td>❌</td></tr>
+<tr><td>Provee confidencialidad</td><td>❌</td><td>❌</td><td>✅</td></tr>
+<tr><td>Provee integridad</td><td>❌</td><td>✅</td><td>✅ (con AEAD)</td></tr>
+<tr><td>Ejemplos</td><td>Base64, Hex</td><td>MD5, SHA-256</td><td>AES, RSA</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>⚠️ Errores críticos de analistas novatos</h2>
+
+<ol>
+<li><strong>&quot;Esto está cifrado&quot;</strong> al ver Base64 → Base64 es decodificable en 2 segundos, no protege nada.</li>
+<li><strong>&quot;Hay que descifrar el hash&quot;</strong> → Los hashes no se descifran, se comparan o se atacan con fuerza bruta.</li>
+<li><strong>&quot;La contraseña está cifrada&quot;</strong> al ver un hash en una base de datos → está hasheada, no cifrada.</li>
+<li><strong>Ignorar encoding</strong> → El malware usa Base64 para ocultar payloads a simple vista y evadir AV.</li>
+</ol>
+
+<hr>
+
+<h2>Relevancia SOC 🔍</h2>
+
+<table><thead><tr>
+<tr><th>Situación</th><th>Qué es</th><th>Qué hacer</th></tr>
+</tr></thead><tbody>
+<tr><td>PowerShell con <code>-enc AAAAAA==</code></td><td>Comando en Base64</td><td>Decodificar inmediatamente</td></tr>
+<tr><td>Archivo con hash <code>d41d8cd98f00b204e9800998ecf8427e</code></td><td>MD5</td><td>Buscar en VirusTotal/MalwareBazaar</td></tr>
+<tr><td>Tráfico HTTPS a IP desconocida</td><td>TLS (cifrado)</td><td>Analizar SNI, certificado, JA3</td></tr>
+<tr><td><code>.encrypted</code> en extensiones de archivos</td><td>AES/RSA ransomware</td><td>Activar playbook de ransomware</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>Próximo tema</h2>
+<p>→ <a href="./01_codificacion.md">01_codificacion.md</a> — Base64, Hex y detección en malware</p>
+
+    <br><br>
+    <a href="../index.html">&#8592; Volver al inicio</a>
+  </div>
+</body>
+</html>

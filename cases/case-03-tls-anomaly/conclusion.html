@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conclusion</title>
+  <link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+  <div class="container">
+<h2>Resumen del Caso</h2>
+
+<p>Se detectó una sesión TLS activa y prolongada desde un host interno hacia una IP externa asociada a infraestructura anónima, utilizando un certificado autofirmado y un JA3 fingerprint no asociado a ningún cliente legítimo conocido. El patrón de tráfico — duración fija, volumen moderado, dominio no categorizado — es consistente con beaconing de C2.</p>
+
+<h2>Hallazgos Clave</h2>
+
+<ul>
+<li>JA3 fingerprint personalizado confirma uso de cliente TLS no estándar (probable implante o framework C2).</li>
+<li>Certificado autofirmado descarta origen legítimo; ningún servicio empresarial confiable opera sin CA válida.</li>
+<li>IP destino (<code>185.220.101.42</code>) con historial en listas de reputación negativa (Tor exit nodes, bullet-proof hosting).</li>
+<li>Duración y volumen de transferencia consistentes con patrón de heartbeat/beaconing cada N segundos.</li>
+</ul>
+
+<h2>Veredicto Final</h2>
+
+<p><strong>Estado</strong>: Malicioso — Alta confianza  </p>
+<p><strong>Clasificación MITRE</strong>: T1071.001 + T1573.002 + T1041  </p>
+<p><strong>Acción recomendada</strong>: Contención inmediata del host, captura forense de memoria, threat hunting en toda la red por JA3 fingerprint y dominio.</p>
+
+<h2>Lección para el Analista SOC</h2>
+
+<blockquote>TLS cifra el contenido, pero no oculta el comportamiento. Un analista competente no necesita ver dentro del túnel para determinar si es malicioso: el fingerprint JA3, la validez del certificado, la reputación del destino y el patrón temporal son suficientes para tomar una decisión de contención. Aprender a leer metadatos de TLS es una habilidad diferenciadora en detección de C2 moderno.</blockquote>
+
+    <br><br>
+    <a href="../../index.html">&#8592; Volver al inicio</a>
+  </div>
+</body>
+</html>
