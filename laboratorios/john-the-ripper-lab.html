@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>John the Ripper Lab — Cryptography for SOC Analysts</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+  <link rel="stylesheet" href="../assets/css/john-lab.css">
+</head>
+<body>
+
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <div class="container">
+
+    <a href="index.html" class="section-back">← Laboratorios</a>
+
+    <header class="hero" style="text-align:left; margin-bottom:1.75rem">
+      <div class="hero-badge">🔬 Lab · Password Auditing</div>
+      <h1>John the Ripper Lab</h1>
+      <p>Laboratorio interactivo y <strong>completamente simulado</strong> para entender ataques de diccionario, fuerza bruta, comparación de algoritmos y controles de mitigación — desde la perspectiva del analista SOC.</p>
+    </header>
+
+    <div class="ethical-notice">
+      <p><strong>⚖️ AVISO ÉTICO Y LEGAL:</strong> Este laboratorio es 100% simulado. No ejecuta cracking real ni opera sobre sistemas externos. Los ataques a sistemas sin autorización explícita son ilegales (CFAA, Ley 26.388, Directiva NIS2, etc.). Usar estas técnicas <strong>solo en sistemas propios o con autorización escrita</strong>.</p>
+    </div>
+
+    <!-- ── TAB NAVIGATION ── -->
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="dictionary">01 · Diccionario</button>
+      <button class="tab-btn"        data-tab="bruteforce">02 · Fuerza Bruta</button>
+      <button class="tab-btn"        data-tab="hashes">03 · Comparador</button>
+      <button class="tab-btn"        data-tab="mitigation">04 · Mitigación</button>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 1 — DICTIONARY ATTACK
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content active" id="tab-dictionary">
+
+      <div class="section-intro">
+        <p><strong>Ataque de diccionario simulado.</strong> Ingresá un hash MD5 y el simulador intentará recuperar la contraseña usando una versión reducida de <code>rockyou.txt</code>. Observá el output estilo terminal de John the Ripper para entender qué ve el analista forense.</p>
+      </div>
+
+      <div class="input-panel">
+        <div class="input-row">
+          <div class="input-group">
+            <label class="input-label" for="dict-hash-input">Hash MD5 objetivo (32 chars hex)</label>
+            <input
+              type="text"
+              id="dict-hash-input"
+              class="input-field"
+              placeholder="ej: 5f4dcc3b5aa765d61d8327deb882cf99"
+              spellcheck="false"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off">
+          </div>
+          <button id="dict-run-btn"   class="btn-primary">▶ Iniciar auditoría</button>
+          <button id="dict-clear-btn" class="btn-secondary">✕ Limpiar</button>
+        </div>
+
+        <div class="hint-box">
+          <p>Cargá un hash pre-definido para ver el ataque en acción — o ingresá cualquier hash MD5 de 32 chars:</p>
+        </div>
+
+        <div class="preset-row">
+          <span style="font-family:var(--font-mono); font-size:0.62rem; color:var(--text-muted)">Presets →</span>
+          <button class="preset-btn" data-hash="5f4dcc3b5aa765d61d8327deb882cf99" title="MD5 de 'password'">password</button>
+          <button class="preset-btn" data-hash="21232f297a57a5a743894a0e4a801fc3" title="MD5 de 'admin'">admin</button>
+          <button class="preset-btn" data-hash="d8578edf8458ce06fbc5bb76a58c5ca4" title="MD5 de 'qwerty'">qwerty</button>
+          <button class="preset-btn" data-hash="f25a2fc72690b780b2a14e140ef6a9e0" title="MD5 de 'iloveyou'">iloveyou</button>
+          <button class="preset-btn" data-hash="e10adc3949ba59abbe56e057f20f883e" title="MD5 de '123456'">123456</button>
+          <button class="preset-btn" data-hash="482c811da5d5b4bc6d497ffa98491e38" title="MD5 de 'password123'">password123</button>
+          <button class="preset-btn" data-hash="3c59dc048e8850243be8079a5c74d079" title="Hash no incluido en la wordlist">desconocido ❓</button>
+        </div>
+      </div>
+
+      <!-- Terminal window -->
+      <div class="terminal-wrapper">
+        <div class="terminal-titlebar">
+          <span class="terminal-dot red"></span>
+          <span class="terminal-dot amber"></span>
+          <span class="terminal-dot green"></span>
+          <span class="terminal-title">john — bash @ soc-lab</span>
+        </div>
+        <div class="terminal-body" id="terminal-body">
+          <span class="terminal-line t-prompt">$ # Seleccioná un preset o ingresá un hash MD5 arriba</span>
+          <span class="terminal-line t-prompt">$ # Luego presioná "Iniciar auditoría" para simular</span>
+          <span class="terminal-line t-prompt">$ # john --format=raw-md5 --wordlist=rockyou-mini.txt hash.txt</span>
+        </div>
+      </div>
+
+      <h2>¿Por qué funciona tan rápido?</h2>
+
+      <p>Un hash como <code>5f4dcc3b5aa765d61d8327deb882cf99</code> se crackea en <strong>milisegundos</strong> porque MD5 fue diseñado para velocidad, no para seguridad. Una GPU moderna calcula <strong>~10 mil millones de hashes MD5 por segundo</strong>. La wordlist rockyou.txt (14.3M contraseñas) se agota en menos de 2ms.</p>
+
+      <blockquote>
+        <strong>Insight SOC:</strong> Ante una brecha con hashes MD5, asumir que <em>todas</em> las contraseñas están comprometidas — sin importar su complejidad. El tiempo de respuesta al incidente debe tratarlos como texto plano desde el inicio.
+      </blockquote>
+
+      <h2>rockyou-mini.txt — wordlist de esta demo</h2>
+      <pre><code>admin, password, password123, 123456, qwerty, letmein,
+welcome, monkey, dragon, master, abc123, 111111, baseball,
+iloveyou, trustno1, sunshine, princess, shadow, superman,
+michael, football, mustang, access, batman, passw0rd,
+password1, 1234567, 12345678, 123456789, qwerty123
+
+→ 30 contraseñas en esta demo
+→ rockyou.txt real: 14,344,391 contraseñas (brecha RockYou 2009)</code></pre>
+
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 2 — BRUTE FORCE CALCULATOR
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-bruteforce">
+
+      <div class="section-intro">
+        <p><strong>Calculadora de fuerza bruta.</strong> Configurá la longitud y el charset para ver cuántas combinaciones existen y cuánto tardaría romperlas con diferentes algoritmos de hash. El tiempo cambia dramáticamente según el algoritmo.</p>
+      </div>
+
+      <div class="input-panel">
+        <div class="input-row">
+          <div class="input-group">
+            <label class="input-label" for="bf-length">Longitud: <span id="bf-length-display">8</span> caracteres</label>
+            <input type="range" id="bf-length" min="4" max="20" value="8"
+              style="width:100%; accent-color:var(--accent); cursor:pointer">
+          </div>
+          <div class="input-group">
+            <label class="input-label" for="bf-charset">Charset</label>
+            <select id="bf-charset" class="select-field">
+              <option value="digits">Números (0-9)</option>
+              <option value="lower">Minúsculas (a-z)</option>
+              <option value="upper">Mayúsculas (A-Z)</option>
+              <option value="lower_upper">a-z + A-Z</option>
+              <option value="alphanumeric" selected>a-zA-Z + 0-9</option>
+              <option value="full">Full ASCII imprimible</option>
+            </select>
+          </div>
+        </div>
+        <p id="bf-charset-info" style="font-size:0.75rem; color:var(--text-muted); margin-top:0.7rem; margin-bottom:0; font-family:var(--font-mono)">62 caracteres posibles · a-zA-Z + 0-9</p>
+      </div>
+
+      <!-- Quick presets -->
+      <div class="preset-row" style="margin-bottom:1rem">
+        <span style="font-family:var(--font-mono); font-size:0.62rem; color:var(--text-muted)">Presets →</span>
+        <button class="bf-preset preset-btn" data-length="4"  data-charset="digits">PIN 4</button>
+        <button class="bf-preset preset-btn" data-length="6"  data-charset="digits">PIN 6</button>
+        <button class="bf-preset preset-btn" data-length="8"  data-charset="lower">8 min.</button>
+        <button class="bf-preset preset-btn" data-length="8"  data-charset="alphanumeric">8 alfanum.</button>
+        <button class="bf-preset preset-btn" data-length="12" data-charset="full">12 full</button>
+        <button class="bf-preset preset-btn" data-length="16" data-charset="full">16 full</button>
+        <button class="bf-preset preset-btn" data-length="20" data-charset="full">20 full</button>
+      </div>
+
+      <!-- Stats cards -->
+      <div class="bf-grid">
+        <div class="bf-stat-card">
+          <span class="bf-stat-label">Combinaciones posibles</span>
+          <div class="bf-stat-value" id="bf-combinations">—</div>
+          <div class="bf-stat-sub">Espacio total de búsqueda (peor caso)</div>
+        </div>
+        <div class="bf-stat-card">
+          <span class="bf-stat-label">Entropía de contraseña</span>
+          <div class="bf-stat-value" id="bf-entropy">—</div>
+          <div class="bf-stat-sub">log₂(combinaciones) — más bits = más seguro</div>
+        </div>
+      </div>
+
+      <!-- Time table -->
+      <h2>Tiempo estimado de crackeo según algoritmo</h2>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem">Tiempo para agotar el 100% del espacio de búsqueda en peor caso, con GPU RTX 3090 (2024).</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Algoritmo</th>
+            <th>Velocidad GPU</th>
+            <th>Tiempo (peor caso)</th>
+          </tr>
+        </thead>
+        <tbody id="bf-speed-tbody">
+          <!-- Populated by john-lab.js -->
+        </tbody>
+      </table>
+
+      <blockquote>
+        <strong>Takeaway clave:</strong> 8 chars alfanumérico contra MD5 → segundos. La misma contraseña contra bcrypt (cost 12) → años. El algoritmo importa <em>más</em> que la contraseña.
+      </blockquote>
+
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 3 — HASH COMPARATOR
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-hashes">
+
+      <div class="section-intro">
+        <p><strong>Comparador de algoritmos de hashing.</strong> La <em>velocidad del atacante</em> es el factor crítico: cuanto más rápido puede hashear el atacante, más rápido puede crackear. Los algoritmos diseñados para passwords son deliberadamente <em>lentos</em>.</p>
+      </div>
+
+      <!-- Cards rendered by JS -->
+      <div id="hash-cards-container" class="hash-compare-grid"></div>
+
+      <h2>Tabla comparativa completa</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Algoritmo</th>
+            <th>Uso diseñado</th>
+            <th>GPU RTX 3090</th>
+            <th>Salt integrado</th>
+            <th>¿Para passwords?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>MD5</code></td>
+            <td>Checksum de archivos (1992)</td>
+            <td style="font-family:var(--font-mono); font-size:0.82rem">~10B / seg</td>
+            <td>No (manual)</td>
+            <td style="color:#ff2d55; font-weight:600">❌ Nunca</td>
+          </tr>
+          <tr>
+            <td><code>SHA1</code></td>
+            <td>Integridad / firmas (1995)</td>
+            <td style="font-family:var(--font-mono); font-size:0.82rem">~3.3B / seg</td>
+            <td>No (manual)</td>
+            <td style="color:#ff2d55; font-weight:600">❌ Nunca</td>
+          </tr>
+          <tr>
+            <td><code>SHA256</code></td>
+            <td>Integridad / TLS / firmas</td>
+            <td style="font-family:var(--font-mono); font-size:0.82rem">~1.2B / seg</td>
+            <td>No (manual)</td>
+            <td style="color:#ffcc00">⚠️ No ideal</td>
+          </tr>
+          <tr>
+            <td><code>bcrypt</code></td>
+            <td>Almacenamiento de passwords</td>
+            <td style="font-family:var(--font-mono); font-size:0.82rem">~15K / seg</td>
+            <td>Sí (automático)</td>
+            <td style="color:#39ff14; font-weight:600">✅ Recomendado</td>
+          </tr>
+          <tr>
+            <td><code>Argon2id</code></td>
+            <td>Passwords — PHC winner 2015</td>
+            <td style="font-family:var(--font-mono); font-size:0.82rem">~800 / seg</td>
+            <td>Sí (automático)</td>
+            <td style="color:#00d4ff; font-weight:600">⭐ Óptimo</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <blockquote>
+        <strong>OWASP Password Storage Cheat Sheet:</strong> Para nuevos sistemas usar Argon2id. Para sistemas legacy migrando, bcrypt (cost ≥ 12). Nunca MD5, SHA1 o SHA256 desnudos para contraseñas.
+      </blockquote>
+
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 4 — MITIGATION CHECKLIST
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-mitigation">
+
+      <div class="section-intro">
+        <p><strong>Checklist de hardening.</strong> Controles de seguridad para proteger contraseñas — tanto para desarrolladores (backend) como para analistas SOC (detección y respuesta). Tacheá los implementados en tu entorno.</p>
+      </div>
+
+      <div class="checklist-progress">
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" id="checklist-progress-fill"></div>
+        </div>
+        <span class="progress-label" id="checklist-progress-label">0 / 8 controles</span>
+      </div>
+
+      <ul class="checklist" id="mitigation-checklist">
+        <!-- Populated by john-lab.js -->
+      </ul>
+
+      <blockquote>
+        <strong>Para el analista SOC:</strong> Conocer estas mitigaciones te permite evaluar la postura de seguridad durante un incidente, identificar qué controles fallaron y recomendar hardening concreto en el post-incident report.
+      </blockquote>
+
+    </div>
+
+    <!-- Bottom nav -->
+    <hr>
+    <p style="font-size:0.85rem; color:var(--text-muted)">
+      Teoría relacionada:
+      <a href="../teoria/02_hashing.html">Hashing</a> ·
+      <a href="../teoria/password-cracking.html">Password Cracking</a> ·
+      <a href="../teoria/07_ransomware.html">Ransomware</a> ·
+      <a href="../recursos/hash-lab/cheatsheet-john.txt">Cheatsheet JtR</a>
+    </p>
+
+    <a href="../index.html">&#8592; Volver al inicio</a>
+
+  </div>
+
+  <script src="../assets/js/john-lab.js"></script>
+</body>
+</html>

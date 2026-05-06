@@ -1,0 +1,121 @@
+# =============================================================
+# cheatsheet-john.txt — John the Ripper: Referencia rápida
+# Cryptography for SOC Analysts — clase-cripto-soc.netlify.app
+#
+# AVISO LEGAL: Usar ÚNICAMENTE en sistemas propios o con
+# autorización escrita del propietario. El uso sin autorización
+# es ilegal (CFAA - EEUU, Ley 26.388 - Argentina, etc.)
+# =============================================================
+
+# ── INSTALACIÓN ──────────────────────────────────────────────
+sudo apt install john                    # Debian / Ubuntu
+sudo dnf install john                    # Fedora / RHEL
+brew install john                        # macOS via Homebrew
+# Windows: https://www.openwall.com/john/ (binario precompilado)
+# Jumbo build (más formatos): https://github.com/openwall/john
+
+# ── VER FORMATOS DISPONIBLES ─────────────────────────────────
+john --list=formats
+john --list=formats | grep -i md5
+john --list=formats | grep -i sha
+john --list=formats | grep -i bcrypt
+
+# ── IDENTIFICAR FORMATO DE UN HASH ───────────────────────────
+# MD5:     32 chars hex | también: $1$salt$hash (/etc/shadow)
+# SHA1:    40 chars hex
+# SHA256:  64 chars hex
+# SHA512:  128 chars hex | también: $6$salt$hash (/etc/shadow)
+# bcrypt:  $2a$, $2b$, $2y$ + cost + salt + hash
+# Argon2:  $argon2id$v=19$...
+# NTLM:    32 chars hex (Windows SAM / NTDS.dit)
+# NTLMv2:  formato extendido con challenge/response
+
+# ── ATAQUE DE DICCIONARIO ────────────────────────────────────
+john hashes.txt --wordlist=rockyou.txt
+john hashes.txt --wordlist=/usr/share/wordlists/rockyou.txt
+john hashes.txt --wordlist=rockyou.txt --format=raw-md5
+john hashes.txt --wordlist=rockyou.txt --format=raw-sha1
+john hashes.txt --wordlist=rockyou.txt --format=bcrypt
+
+# ── FUERZA BRUTA (INCREMENTAL) ───────────────────────────────
+john hashes.txt --incremental                # charset completo
+john hashes.txt --incremental=alpha          # solo letras a-z
+john hashes.txt --incremental=digits         # solo 0-9
+john hashes.txt --incremental=alnum          # letras + números
+john hashes.txt --incremental=all            # ASCII imprimible
+
+# ── MUTACIÓN DE PALABRAS (RULES) ─────────────────────────────
+john hashes.txt --wordlist=list.txt --rules
+john hashes.txt --wordlist=list.txt --rules=jumbo
+john hashes.txt --wordlist=list.txt --rules=best64
+# rules convierte "password" en: Password, password1, p@ssword, etc.
+
+# ── VER RESULTADOS ───────────────────────────────────────────
+john --show hashes.txt
+john --show --format=raw-md5 hashes.txt
+cat ~/.john/john.pot               # ver todas las crackeadas
+
+# ── SESIONES (pausar / retomar) ──────────────────────────────
+john hashes.txt --session=auditoria_01
+john --restore=auditoria_01
+
+# ── FORMATOS COMUNES EN FORENSIA ─────────────────────────────
+# Linux /etc/shadow (SHA-512):
+john --format=sha512crypt shadow.txt --wordlist=rockyou.txt
+
+# Windows NTLM (dump de SAM):
+john --format=NT hashes_ntlm.txt --wordlist=rockyou.txt
+
+# ZIP protegido con contraseña:
+zip2john archivo.zip > zip_hash.txt
+john zip_hash.txt --wordlist=rockyou.txt
+
+# PDF protegido:
+pdf2john archivo.pdf > pdf_hash.txt
+john pdf_hash.txt --wordlist=rockyou.txt
+
+# SSH private key con passphrase:
+ssh2john id_rsa > ssh_hash.txt
+john ssh_hash.txt --wordlist=rockyou.txt
+
+# ── HASHCAT (ALTERNATIVA — más rápido en GPU) ────────────────
+hashcat -m 0    hashes.txt rockyou.txt     # MD5
+hashcat -m 100  hashes.txt rockyou.txt     # SHA1
+hashcat -m 1400 hashes.txt rockyou.txt     # SHA256
+hashcat -m 3200 hashes.txt rockyou.txt     # bcrypt
+hashcat -m 1800 hashes.txt rockyou.txt     # sha512crypt (Linux)
+hashcat -m 1000 hashes.txt rockyou.txt     # NTLM (Windows)
+
+# Fuerza bruta con máscara (hashcat):
+hashcat -m 0 -a 3 hashes.txt ?a?a?a?a?a?a      # 6 chars all
+hashcat -m 0 -a 3 hashes.txt ?u?l?l?l?d?d?d?d  # Patrón personalizado
+
+# ── DETECCIÓN SOC: indicadores de brute force ────────────────
+# Windows Event ID:
+#   4625 → Failed logon attempt
+#   4740 → Account locked out
+#   4648 → Logon using explicit credentials
+# Linux /var/log/auth.log:
+#   "Failed password for [user] from [IP]"
+#   "Invalid user [user] from [IP]"
+# Umbral de alerta típico: >10 intentos fallidos en 60 seg
+
+# ── CASOS DE USO LEGÍTIMOS ───────────────────────────────────
+# 1. Auditoría de política de contraseñas (pentesting autorizado)
+# 2. Recuperación de credenciales propias olvidadas
+# 3. Forensia digital con orden judicial / autorización
+# 4. CTF (Capture the Flag) y entornos de práctica
+# 5. Red Team engagement (scope definido contractualmente)
+# 6. Verificación de cumplimiento de política de passwords
+
+# ── MITIGACIÓN: cómo defenderse ──────────────────────────────
+# Para desarrolladores:
+#   - Usar bcrypt (cost >= 12) o Argon2id para passwords
+#   - Salt único por usuario (bcrypt/Argon2 lo hacen automáticamente)
+#   - NUNCA usar MD5, SHA1 o SHA256 desnudo para passwords
+# Para analistas SOC:
+#   - Monitorear failed logins con SIEM (umbral + tiempo)
+#   - Account lockout policy (ej: 10 intentos → bloqueo 30 min)
+#   - Rate limiting en APIs de autenticación
+#   - MFA como control compensatorio primario
+# =============================================================

@@ -1,0 +1,47 @@
+# =============================================================
+# rockyou-mini.txt — Mini wordlist educativa
+# Subconjunto representativo para demostración en clase
+# Cryptography for SOC Analysts — uso educativo exclusivamente
+# =============================================================
+# rockyou.txt original: 14,344,391 contraseñas
+# (filtradas de la brecha de RockYou.com — 2009)
+# Esta versión mini contiene las 30 más comunes, solo para
+# ilustrar cómo funciona un ataque de diccionario.
+# =============================================================
+admin
+password
+password123
+123456
+qwerty
+letmein
+welcome
+monkey
+dragon
+master
+abc123
+111111
+baseball
+iloveyou
+trustno1
+sunshine
+princess
+shadow
+superman
+michael
+football
+mustang
+access
+batman
+passw0rd
+password1
+1234567
+12345678
+123456789
+qwerty123
+# =============================================================
+# 30 contraseñas — rockyou.txt real: 14,344,391
+#
+# NOTA EDUCATIVA: Un atacante con la lista completa de rockyou.txt
+# puede crackear ~70-80% de los hashes MD5 del mundo real en
+# cuestión de minutos en hardware moderno.
+# =============================================================
