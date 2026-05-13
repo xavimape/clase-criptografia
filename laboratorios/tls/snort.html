@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snort / Suricata TLS Lab — Cryptography for SOC Analysts</title>
+  <link rel="stylesheet" href="../../assets/css/style.css">
+  <link rel="stylesheet" href="../../assets/css/john-lab.css">
+  <link rel="stylesheet" href="../../assets/css/ja3-lab.css">
+</head>
+<body>
+
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <div class="container">
+
+    <a href="../index.html" class="section-back">← Laboratorios</a>
+
+    <header class="hero" style="text-align:left; margin-bottom:1.5rem">
+      <div class="hero-badge">🐷 Lab · TLS Detection · Snort / Suricata</div>
+      <h1>Snort / Suricata — Detección TLS con JA3</h1>
+      <p>Reglas de detección en tiempo real para identificar huellas TLS maliciosas usando
+      Snort 3 y Suricata. Incluye ejemplos de C2 conocidos y técnicas de evasión.</p>
+    </header>
+
+    <!-- ── Sub-navegación ── -->
+    <nav class="lab-subnav">
+      <span class="lab-subnav-label">TLS Lab →</span>
+      <a href="ja3.html"       class="lab-subnav-link">🔑 JA3 Core</a>
+      <a href="wireshark.html" class="lab-subnav-link">🦈 Wireshark</a>
+      <a href="snort.html"     class="lab-subnav-link active">🐷 Snort</a>
+      <a href="qradar.html"    class="lab-subnav-link">📊 QRadar</a>
+      <a href="fortigate.html" class="lab-subnav-link">🛡️ FortiGate</a>
+    </nav>
+
+    <!-- ── Tab Navigation ── -->
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="anatomy">01 · Anatomía de Regla</button>
+      <button class="tab-btn"        data-tab="ja3rules">02 · Reglas JA3</button>
+      <button class="tab-btn"        data-tab="suricata">03 · Suricata</button>
+      <button class="tab-btn"        data-tab="tuning">04 · Tuning y FP</button>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 1 — ANATOMÍA DE UNA REGLA SNORT
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content active" id="tab-anatomy">
+
+      <div class="section-intro">
+        <p><strong>Snort 3</strong> y <strong>Suricata</strong> soportan la palabra clave
+        <code>ja3.hash</code> (Suricata) y <code>ssl_state</code> + <code>content</code>
+        (Snort 3) para detectar huellas JA3 directamente en el flujo TLS sin necesidad de
+        descifrar el tráfico.</p>
+      </div>
+
+      <h2>Estructura de una regla Snort 3 / Suricata</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">SNORT RULE SYNTAX</span>
+          <span class="code-block-desc">Anatomía de una regla — cada campo explicado</span>
+        </div>
+        <pre><code>┌─ Acción: alert | drop | pass | log
+│  ┌─ Protocolo: tcp | udp | tls | http | dns
+│  │  ┌─ IP Origen   ┌─ Puerto Origen
+│  │  │              │       ┌─ Dirección del flujo: → (unidireccional) | <> (bidireccional)
+│  │  │              │       │   ┌─ IP Destino     ┌─ Puerto Destino
+│  │  │              │       │   │                  │
+alert tls $HOME_NET any -> $EXTERNAL_NET $HTTPS_PORTS \
+(
+  msg:"JA3 - Metasploit Meterpreter detectado";    ← Mensaje de alerta
+  ja3.hash; content:"e7d705a3286e19ea42f587b344ee6865";  ← Detección del hash
+  flow:established,to_server;                        ← Dirección del flujo TLS
+  classtype:trojan-activity;                         ← Clasificación MITRE/Snort
+  sid:9000001;                                       ← ID único de la regla
+  rev:1;                                             ← Revisión
+  metadata:affected_product Any, attack_target Client_Endpoint,
+           created_at 2024_01_01, deployment Perimeter,
+           performance_impact Low, signature_severity Critical,
+           updated_at 2024_01_01;                    ← Metadatos opcionales pero útiles
+)</code></pre>
+      </div>
+
+      <h2>Variables de red — snort.conf / suricata.yaml</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">SNORT CONFIG</span>
+          <span class="code-block-desc">Variables a configurar antes de usar las reglas</span>
+        </div>
+        <pre><code># En snort.conf (Snort 3) o suricata.yaml
+
+# Red interna — ajustar a tu topología
+ipvar HOME_NET [192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12]
+
+# Puertos HTTPS estándar y alternativos
+portvar HTTPS_PORTS [443, 8443, 4443, 8080, 8888]
+
+# Puertos no estándar donde puede ocurrir C2 vía TLS
+portvar C2_PORTS [4444, 5555, 1337, 8888, 9999, 55553]
+
+# Inspección TLS habilitada
+config enable_deep_teredo_inspection  # si corresponde
+# preprocessor ssl: trustservers, noinspect_encrypted</code></pre>
+      </div>
+
+      <h2>Clases de alerta relevantes para JA3</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Classtype</th>
+            <th>Prioridad</th>
+            <th>Uso</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>trojan-activity</code></td>
+            <td style="color:#ff2d55; font-weight:600">1 (Crítica)</td>
+            <td>Malware confirmado: Emotet, Dridex, Meterpreter</td>
+          </tr>
+          <tr>
+            <td><code>attempted-intrusion</code></td>
+            <td style="color:#ff2d55">1 (Alta)</td>
+            <td>Frameworks de ataque: Metasploit, Cobalt Strike</td>
+          </tr>
+          <tr>
+            <td><code>policy-violation</code></td>
+            <td style="color:#ffcc00">2 (Media)</td>
+            <td>Herramientas dual-use: curl no autorizado, Go tools</td>
+          </tr>
+          <tr>
+            <td><code>suspicious-activity</code></td>
+            <td style="color:#ffcc00">2 (Media)</td>
+            <td>JA3 inusual sin clasificar, TLS en puertos no estándar</td>
+          </tr>
+          <tr>
+            <td><code>network-scan</code></td>
+            <td>3 (Baja)</td>
+            <td>Nmap SSL scanning, reconocimiento</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </div><!-- /#tab-anatomy -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 2 — REGLAS JA3 PARA SNORT 3
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-ja3rules">
+
+      <div class="section-intro">
+        <p><strong>Snort 3</strong> incluye el keyword <code>ja3.hash</code> de forma nativa desde la
+        versión 3.1.x con el plugin TLS. Las reglas detectan el hash en el primer paquete del handshake
+        sin necesidad de descifrar el tráfico.</p>
+      </div>
+
+      <h2>Reglas de detección — Malware C2 conocido</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">SNORT 3 RULES</span>
+          <span class="code-block-desc">local.rules — frameworks de ataque confirmados</span>
+        </div>
+        <pre><code># ── METASPLOIT METERPRETER ────────────────────────────────────────────────
+# JA3: e7d705a3286e19ea42f587b344ee6865
+# Detecta el Client Hello de Meterpreter en cualquier puerto TLS.
+# Meterpreter usa un set de cipher suites muy básico y antiguo (SSLv3/TLS1.0).
+alert tls $HOME_NET any -> $EXTERNAL_NET any (
+  msg:"SOC-LAB JA3 Metasploit Meterpreter Activity";
+  ja3.hash; content:"e7d705a3286e19ea42f587b344ee6865";
+  flow:established,to_server;
+  classtype:trojan-activity;
+  priority:1;
+  sid:9000001; rev:2;
+)
+
+# ── COBALT STRIKE — DEFAULT PROFILE (pre-4.x) ─────────────────────────────
+# JA3: de350869b8c85de67a350c8d186f11e6
+# Importante: Cobalt Strike 4.x con Malleable C2 puede cambiar esta huella.
+# Complementar con detección de certificate fingerprint (JA3S).
+alert tls $HOME_NET any -> $EXTERNAL_NET any (
+  msg:"SOC-LAB JA3 Cobalt Strike Default Beacon";
+  ja3.hash; content:"de350869b8c85de67a350c8d186f11e6";
+  flow:established,to_server;
+  classtype:trojan-activity;
+  priority:1;
+  sid:9000002; rev:2;
+)
+
+# ── EMOTET C2 ─────────────────────────────────────────────────────────────
+alert tls $HOME_NET any -> $EXTERNAL_NET any (
+  msg:"SOC-LAB JA3 Emotet C2 Communication";
+  ja3.hash; content:"8bab54f22de07d88e90f5e8e5edb5a69";
+  flow:established,to_server;
+  classtype:trojan-activity;
+  priority:1;
+  sid:9000003; rev:1;
+)
+
+# ── DRIDEX / BITPAYMER ────────────────────────────────────────────────────
+alert tls $HOME_NET any -> $EXTERNAL_NET any (
+  msg:"SOC-LAB JA3 Dridex Exfiltration";
+  ja3.hash; content:"19e29534fd49dd27d09234e7b95b86c1";
+  flow:established,to_server;
+  classtype:trojan-activity;
+  priority:1;
+  sid:9000004; rev:1;
+)</code></pre>
+      </div>
+
+      <h2>Reglas para herramientas dual-use</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">SNORT 3 RULES</span>
+          <span class="code-block-desc">dual-use.rules — herramientas legítimas usadas maliciosamente</span>
+        </div>
+        <pre><code># ── PYTHON REQUESTS / urllib3 ─────────────────────────────────────────────
+# Legítimo en servidores de producción, sospechoso en workstations.
+# La regla solo alerta desde hosts NO clasificados como servidores.
+alert tls $HOME_NET any -> $EXTERNAL_NET $HTTPS_PORTS (
+  msg:"SOC-LAB JA3 Python requests — verificar legitimidad";
+  ja3.hash; content:"b386946a5a44d1ddcc843bc75336dfce";
+  flow:established,to_server;
+  classtype:policy-violation;
+  priority:2;
+  sid:9000010; rev:1;
+)
+
+# ── GOLANG DEFAULT TLS ────────────────────────────────────────────────────
+# Muchas herramientas de red escritas en Go: legítimas e ilegítimas.
+# Correlacionar con reputación de IP destino.
+alert tls $HOME_NET any -> $EXTERNAL_NET any (
+  msg:"SOC-LAB JA3 Golang Default TLS — revisar contexto";
+  ja3.hash; content:"51c64c77e60f3980eea90869b68c58a8";
+  flow:established,to_server;
+  classtype:suspicious-activity;
+  priority:2;
+  sid:9000011; rev:1;
+)
+
+# ── TOR BROWSER / CS OVERLAP ─────────────────────────────────────────────
+# Hash compartido por Tor y algunos configs de CS. Alto FP si hay usuarios Tor legítimos.
+alert tls $HOME_NET any -> $EXTERNAL_NET any (
+  msg:"SOC-LAB JA3 Tor/CS overlap — investigar destino";
+  ja3.hash; content:"a0e9f5d64349fb13191bc781f81f42e1";
+  flow:established,to_server;
+  classtype:suspicious-activity;
+  priority:2;
+  sid:9000012; rev:1;
+)</code></pre>
+      </div>
+
+      <h2>Reglas basadas en patrones de cipher suites</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">SNORT 3 RULES</span>
+          <span class="code-block-desc">anomaly.rules — detección por comportamiento, sin hash fijo</span>
+        </div>
+        <pre><code># ── TLS CON CIPHER NULL (sin cifrado real) ───────────────────────────────
+# TLS_NULL_WITH_NULL_NULL = 0x0000 — tráfico en claro dentro del handshake
+# Nunca debería verse en tráfico legítimo de producción
+alert tls $HOME_NET any -> any any (
+  msg:"SOC-LAB TLS NULL Cipher Suite — posible evasión/debug";
+  ssl_state:client_hello;
+  content:"|00 00|"; offset:40; depth:200;
+  classtype:suspicious-activity;
+  priority:1;
+  sid:9000020; rev:1;
+)
+
+# ── TLS EN PUERTO NO ESTÁNDAR ─────────────────────────────────────────────
+# C2 sobre TLS en puertos 4444, 5555, 8888, etc.
+# Snort necesita deep inspection habilitado para ver el handshake
+alert tcp $HOME_NET any -> $EXTERNAL_NET [4444,5555,1337,9999,8888,55553] (
+  msg:"SOC-LAB TLS Handshake en puerto C2 conocido";
+  ssl_state:client_hello;
+  flow:established,to_server;
+  classtype:suspicious-activity;
+  priority:2;
+  sid:9000021; rev:1;
+)
+
+# ── CLIENT HELLO SIN SNI ──────────────────────────────────────────────────
+# La extensión SNI (type 0x0000) está presente en casi todos los browsers.
+# Su ausencia sugiere herramienta de línea de comandos o malware.
+# Offset depende de la estructura exacta del TLS record — ajustar en lab.
+alert tls $HOME_NET any -> $EXTERNAL_NET $HTTPS_PORTS (
+  msg:"SOC-LAB TLS Client Hello sin extensión SNI";
+  ssl_state:client_hello;
+  content:!"|00 00|"; offset:45; depth:20;  # Posición aproximada de extension type 0
+  classtype:suspicious-activity;
+  priority:3;
+  sid:9000022; rev:1;
+)</code></pre>
+      </div>
+
+    </div><!-- /#tab-ja3rules -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 3 — SURICATA (keywords nativos JA3/JA3S)
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-suricata">
+
+      <div class="section-intro">
+        <p><strong>Suricata</strong> tiene soporte nativo de JA3 y JA3S desde la versión 4.1.
+        Los keywords <code>ja3.hash</code>, <code>ja3.string</code>, <code>ja3s.hash</code> y
+        <code>ja3s.string</code> permiten una sintaxis más limpia que Snort para detección TLS.</p>
+      </div>
+
+      <h2>Suricata — Reglas JA3 nativas</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">SURICATA RULES</span>
+          <span class="code-block-desc">suricata-ja3.rules — sintaxis nativa de Suricata</span>
+        </div>
+        <pre><code># ── METASPLOIT con ja3.hash nativo ───────────────────────────────────────
+alert tls any any -> any any (
+  msg:"SURICATA JA3 Metasploit Meterpreter";
+  ja3.hash; content:"e7d705a3286e19ea42f587b344ee6865";
+  sid:9100001; rev:1;
+  classtype:trojan-activity;
+)
+
+# ── COBALT STRIKE ─────────────────────────────────────────────────────────
+alert tls any any -> any any (
+  msg:"SURICATA JA3 Cobalt Strike Default";
+  ja3.hash; content:"de350869b8c85de67a350c8d186f11e6";
+  sid:9100002; rev:1;
+  classtype:trojan-activity;
+)
+
+# ── JA3 + JA3S (server side) — DETECCIÓN BIDIRECCIONAL ───────────────────
+# JA3S es la huella del SERVER Hello — permite identificar el C2 server.
+# El par (JA3, JA3S) es más específico que cualquiera de los dos solos.
+# JA3S de Cobalt Strike default: 649d6810e8392f63dc311eecb6b7098b
+alert tls any any -> any any (
+  msg:"SURICATA JA3+JA3S Cobalt Strike bidireccional";
+  ja3.hash; content:"de350869b8c85de67a350c8d186f11e6";
+  ja3s.hash; content:"649d6810e8392f63dc311eecb6b7098b";
+  sid:9100003; rev:1;
+  classtype:trojan-activity;
+)
+
+# ── BUSCAR POR STRING JA3 (sin hash — útil para análisis) ─────────────────
+# ja3.string contiene el string pre-MD5 — permite buscar patrones en las listas
+# Ejemplo: detectar cualquier client con versión TLS 769 (TLS 1.0)
+alert tls any any -> any any (
+  msg:"SURICATA JA3 versión TLS 1.0 — legacy/sospechoso";
+  ja3.string; content:"769,"; startswith;
+  sid:9100010; rev:1;
+  classtype:suspicious-activity;
+)
+
+# ── CIPHER LIST MUY CORTA — posible tool simple/malware ──────────────────
+# JA3 strings de Metasploit empiezan con la versión + pocos ciphers
+alert tls any any -> any any (
+  msg:"SURICATA JA3 cipher list mínima — investigar cliente";
+  ja3.string; content:"769,4,5,10,9,100,"; startswith;
+  sid:9100011; rev:1;
+  classtype:suspicious-activity;
+)</code></pre>
+      </div>
+
+      <h2>Configurar Suricata para JA3 — suricata.yaml</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">YAML</span>
+          <span class="code-block-desc">suricata.yaml — habilitar logging JA3</span>
+        </div>
+        <pre><code># En suricata.yaml — habilitar el output de eve.json con JA3
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: /var/log/suricata/eve.json
+      types:
+        - alert:
+            # Incluir campos TLS en alerts
+            metadata: yes
+        - tls:
+            # ─── CRÍTICO: habilitar campos JA3 en logs TLS ───
+            enabled: yes
+            extended: yes    # Incluye ja3, ja3s, sni, cert hash
+            custom:
+              - ja3          # Hash JA3 del client
+              - ja3s         # Hash JA3S del server
+              - sni          # Server Name Indication
+              - version      # Versión TLS negociada
+              - certificate  # Fingerprint del certificado
+              - issuer       # Emisor del certificado
+
+# Habilitar la inspección TLS
+app-layer:
+  protocols:
+    tls:
+      enabled: yes
+      detection-ports:
+        dp: 443, 8443, 4443     # Agregar puertos C2 si detectás beaconing
+
+# Si usás reglas JA3, asegurar que el fichero de reglas esté referenciado:
+rule-files:
+  - /etc/suricata/rules/suricata-ja3.rules
+  - /etc/suricata/rules/local.rules</code></pre>
+      </div>
+
+      <h2>Verificar que JA3 funciona</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">BASH</span>
+          <span class="code-block-desc">Testear extracción JA3 en Suricata</span>
+        </div>
+        <pre><code># Correr Suricata sobre un PCAP de prueba y ver el JSON
+suricata -r captura.pcap -l /tmp/suricata-output/ -c /etc/suricata/suricata.yaml
+
+# Ver eventos TLS con JA3 en el output JSON
+cat /tmp/suricata-output/eve.json | python3 -m json.tool | grep -A 20 '"event_type": "tls"'
+
+# Ejemplo de salida esperada:
+# {
+#   "timestamp": "2024-01-15T10:30:00.000000+0000",
+#   "event_type": "tls",
+#   "src_ip": "192.168.1.105",
+#   "dest_ip": "185.220.101.4",
+#   "tls": {
+#     "sni": "update.evil.example.com",
+#     "version": "TLS 1.2",
+#     "ja3": {
+#       "hash": "e7d705a3286e19ea42f587b344ee6865",
+#       "string": "769,4-5-10-9-100-98-3-6-19-18-99,15,"
+#     }
+#   }
+# }
+
+# Ver solo alerts de JA3 malicioso
+jq 'select(.event_type == "alert" and .alert.signature | startswith("SURICATA JA3"))' \
+  /tmp/suricata-output/eve.json</code></pre>
+      </div>
+
+    </div><!-- /#tab-suricata -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 4 — TUNING Y REDUCCIÓN DE FALSOS POSITIVOS
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-tuning">
+
+      <div class="section-intro">
+        <p><strong>Los falsos positivos (FP)</strong> son el mayor problema de las reglas JA3.
+        Un hash que coincide con Metasploit puede también ser generado por una aplicación legacy legítima.
+        El tuning es crítico para un SIEM efectivo.</p>
+      </div>
+
+      <h2>Estrategias para reducir FP</h2>
+
+      <div class="soc-flow">
+
+        <div class="soc-step">
+          <div class="soc-step-icon">1</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Modo detección antes de bloqueo</div>
+            <p class="soc-step-desc">
+              Empezar con <code>alert</code>, nunca con <code>drop</code> directamente.
+              Correr la regla en modo IDS (solo detección) por 5-7 días. Analizar los hits:
+              ¿son IPs internas conocidas? ¿Horarios de negocio? ¿Destinos en whitelist?
+              Solo convertir a <code>drop</code> cuando la precisión es > 95%.
+            </p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">2</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Excluir IPs y subredes conocidas</div>
+            <p class="soc-step-desc">
+              Usando la variable <code>$HOME_NET</code> y listas de exclusión en Snort/Suricata.
+              Si tenés servidores de build que usan curl intensivamente, excluirlos del scope de la regla:
+              <code>alert tls $HOME_NET !$BUILD_SERVERS -> $EXTERNAL_NET any (...)</code>
+            </p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">3</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Correlacionar con reputación de IP destino</div>
+            <p class="soc-step-desc">
+              Una conexión con JA3 de curl hacia <code>8.8.8.8</code> (DNS de Google) es legítima.
+              La misma conexión hacia <code>185.220.x.x</code> (Tor exit nodes) o una IP en
+              Shodan con puertos 4444 abiertos merece investigación. Usar threat intel feeds
+              en paralelo con la detección JA3.
+            </p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">4</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Usar threshold para alertas repetidas</div>
+            <p class="soc-step-desc">
+              En Snort 3: keyword <code>threshold</code> para no generar 1000 alertas de la misma
+              conexión C2. En Suricata: <code>detection-filter</code>. Ejemplo:
+              alerta una vez por minuto por IP destino único, no en cada paquete del stream.
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      <h2>Threshold y suppress en Snort 3</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">SNORT 3 CONFIG</span>
+          <span class="code-block-desc">threshold.conf — control de volumen de alertas</span>
+        </div>
+        <pre><code># ── THRESHOLD — limitar alertas por IP fuente ─────────────────────────────
+# Generar alerta solo la primera vez por IP fuente en un período de 5 minutos
+# Evita flood de alertas de un C2 en beaconing continuo
+threshold gen_id 1, sig_id 9000001, type limit, track by_src, count 1, seconds 300
+
+# ── SUPPRESS — silenciar un host específico (whitelist) ───────────────────
+# Si un servidor legítimo genera FP con la regla 9000010 (Python requests),
+# suprimir para esa IP específica
+suppress gen_id 1, sig_id 9000010, track by_src, ip 10.10.1.55
+
+# ── SUPPRESS por red completa ─────────────────────────────────────────────
+# Suprimir regla de curl para todos los servidores de CI/CD
+suppress gen_id 1, sig_id 9000010, track by_src, ip 10.10.100.0/24
+
+# ── DETECTION FILTER en Suricata (equivalente) ────────────────────────────
+# En la regla, agregar el keyword detection_filter:
+alert tls $HOME_NET any -> $EXTERNAL_NET any (
+  msg:"SURICATA JA3 Golang Default TLS";
+  ja3.hash; content:"51c64c77e60f3980eea90869b68c58a8";
+  detection_filter: track by_src, count 5, seconds 60;  ← mínimo 5 veces en 60s
+  sid:9100015; rev:1;
+)</code></pre>
+      </div>
+
+      <h2>Resumen — ¿Cuándo usar qué enfoque?</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Escenario</th>
+            <th>Enfoque recomendado</th>
+            <th>Riesgo de FP</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Hash JA3 = Metasploit confirmado</td>
+            <td>Regla con <code>drop</code> en IPS mode</td>
+            <td style="color:#39ff14">Muy bajo</td>
+          </tr>
+          <tr>
+            <td>Hash JA3 = Cobalt Strike default</td>
+            <td>Alert + correlación con IP reputation</td>
+            <td style="color:#ffcc00">Bajo</td>
+          </tr>
+          <tr>
+            <td>Hash JA3 = curl / Python</td>
+            <td>Alert solo en workstations, no en servidores</td>
+            <td style="color:#ffcc00">Medio</td>
+          </tr>
+          <tr>
+            <td>JA3 hash de Golang</td>
+            <td>Alert con threshold + correlación</td>
+            <td style="color:#ff2d55">Alto</td>
+          </tr>
+          <tr>
+            <td>TLS en puerto no estándar</td>
+            <td>Alert, investigación manual</td>
+            <td style="color:#ffcc00">Medio</td>
+          </tr>
+          <tr>
+            <td>Client Hello sin SNI</td>
+            <td>Alert con baja prioridad, revisión periódica</td>
+            <td style="color:#ff2d55">Alto</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </div><!-- /#tab-tuning -->
+
+
+    <!-- ── Footer ── -->
+    <hr>
+    <p style="font-size:0.85rem; color:var(--text-muted)">
+      Continuá el lab TLS:
+      <a href="ja3.html">JA3 Core</a> ·
+      <a href="wireshark.html">Wireshark</a> ·
+      <a href="qradar.html">QRadar</a> ·
+      <a href="fortigate.html">FortiGate</a> ·
+      <a href="../../teoria/05_tls.html">Teoría TLS</a>
+    </p>
+
+    <a href="../../index.html">← Volver al inicio</a>
+
+  </div>
+
+  <script src="../../assets/js/ja3-lab.js"></script>
+</body>
+</html>

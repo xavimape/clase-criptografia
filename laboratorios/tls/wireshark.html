@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wireshark TLS Lab — Cryptography for SOC Analysts</title>
+  <link rel="stylesheet" href="../../assets/css/style.css">
+  <link rel="stylesheet" href="../../assets/css/john-lab.css">
+  <link rel="stylesheet" href="../../assets/css/ja3-lab.css">
+</head>
+<body>
+
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <div class="container">
+
+    <a href="../index.html" class="section-back">← Laboratorios</a>
+
+    <header class="hero" style="text-align:left; margin-bottom:1.5rem">
+      <div class="hero-badge">🦈 Lab · TLS Analysis · Wireshark</div>
+      <h1>Wireshark — Análisis TLS</h1>
+      <p>Cómo capturar, filtrar y extraer información JA3 de tráfico TLS usando Wireshark
+      y <code>tshark</code> desde la perspectiva del analista SOC.</p>
+    </header>
+
+    <!-- ── Sub-navegación del lab TLS ── -->
+    <nav class="lab-subnav">
+      <span class="lab-subnav-label">TLS Lab →</span>
+      <a href="ja3.html"       class="lab-subnav-link">🔑 JA3 Core</a>
+      <a href="wireshark.html" class="lab-subnav-link active">🦈 Wireshark</a>
+      <a href="snort.html"     class="lab-subnav-link">🐷 Snort</a>
+      <a href="qradar.html"    class="lab-subnav-link">📊 QRadar</a>
+      <a href="fortigate.html" class="lab-subnav-link">🛡️ FortiGate</a>
+    </nav>
+
+    <!-- ── Tab Navigation ── -->
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="filters">01 · Filtros de Display</button>
+      <button class="tab-btn"        data-tab="ja3extract">02 · Extracción JA3</button>
+      <button class="tab-btn"        data-tab="tshark">03 · tshark en CLI</button>
+      <button class="tab-btn"        data-tab="workflow">04 · Workflow SOC</button>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 1 — FILTROS DE DISPLAY PARA TLS
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content active" id="tab-filters">
+
+      <div class="section-intro">
+        <p><strong>Filtros de display</strong> de Wireshark para aislar tráfico TLS y enfocarse
+        en los Client Hello que producen las huellas JA3. Son distintos de los filtros de captura (BPF).</p>
+      </div>
+
+      <h2>Filtros esenciales — Client Hello</h2>
+
+      <!-- Filtro 1: Todos los Client Hello -->
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">WIRESHARK DISPLAY FILTER</span>
+          <span class="code-block-desc">Todos los TLS Client Hello</span>
+        </div>
+        <pre><code>tls.handshake.type == 1</code></pre>
+      </div>
+
+      <p>El tipo de mensaje <code>1</code> es siempre un Client Hello. Es el punto de partida
+      para cualquier análisis JA3 — todos los paquetes que aparecen con este filtro son candidatos
+      a generar una huella JA3.</p>
+
+      <!-- Filtro 2: Por versión TLS -->
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">WIRESHARK DISPLAY FILTER</span>
+          <span class="code-block-desc">Client Hello con versión TLS específica</span>
+        </div>
+        <pre><code>/* TLS 1.2 Client Hello (0x0303) */
+tls.handshake.type == 1 && tls.handshake.version == 0x0303
+
+/* TLS 1.0 Client Hello — inusual en 2024, sospechoso */
+tls.handshake.type == 1 && tls.handshake.version == 0x0301
+
+/* Clientes que NO ofrecen TLS 1.3 — potencialmente legacy/malware */
+tls.handshake.type == 1 && !(tls.handshake.extensions.supported_version == 0x0304)</code></pre>
+      </div>
+
+      <blockquote>
+        <strong>Insight SOC:</strong> En 2024, cualquier cliente que negocie TLS 1.0 o 1.1 es sospechoso.
+        Muchos malwares usan versiones antiguas para compatibilidad con C2 servers viejos o mal configurados.
+      </blockquote>
+
+      <!-- Filtro 3: Por cipher suites -->
+      <h2>Filtrar por Cipher Suites</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">WIRESHARK DISPLAY FILTER</span>
+          <span class="code-block-desc">Cipher suites débiles o sospechosas</span>
+        </div>
+        <pre><code>/* Cipher NULL — sin cifrado, tráfico en claro */
+tls.handshake.ciphersuite == 0x0000
+
+/* DES / RC4 — algoritmos rotos desde hace años */
+tls.handshake.ciphersuite == 0x0009 || tls.handshake.ciphersuite == 0x0005
+
+/* Sólo 1-4 cipher suites en la lista — típico de tools simples o malware */
+tls.handshake.type == 1 && tls.handshake.ciphersuites.count <= 4
+
+/* Client Hello con TLS_RSA_WITH_NULL_MD5 — nunca debería verse */
+tls.handshake.ciphersuite == 0x0001</code></pre>
+      </div>
+
+      <!-- Filtro 4: Por extensiones -->
+      <h2>Filtrar por Extensiones TLS</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">WIRESHARK DISPLAY FILTER</span>
+          <span class="code-block-desc">Detección de clientes sin extensiones modernas</span>
+        </div>
+        <pre><code>/* Client Hello sin SNI (Extension 0) — raro en browsers legítimos */
+tls.handshake.type == 1 && !(tls.handshake.extensions.type == 0x0000)
+
+/* Sin ALPN — inusual para browsers pero normal en algunos tools */
+tls.handshake.type == 1 && !(tls.handshake.extensions.type == 0x0010)
+
+/* Sin session ticket — indica cliente sin persistencia de sesión */
+tls.handshake.type == 1 && !(tls.handshake.extensions.type == 0x0023)
+
+/* Buscar SNI específico (dominio sospechoso) */
+tls.handshake.extensions_server_name == "evil-c2.example.com"</code></pre>
+      </div>
+
+      <!-- Filtro 5: Por IP y JA3 -->
+      <h2>Filtros combinados para investigación</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">WIRESHARK DISPLAY FILTER</span>
+          <span class="code-block-desc">Combinaciones útiles para análisis SOC</span>
+        </div>
+        <pre><code>/* Todos los Client Hello desde una IP sospechosa */
+tls.handshake.type == 1 && ip.src == 192.168.1.105
+
+/* Client Hello hacia puerto no estándar (no 443) — posible C2 */
+tls.handshake.type == 1 && tcp.dstport != 443 && tcp.dstport != 8443
+
+/* Client Hello hacia rango de IPs de C2 conocido */
+tls.handshake.type == 1 && (ip.dst >= 185.220.0.0 && ip.dst <= 185.220.255.255)
+
+/* Ver flujo completo de una sesión TLS */
+tls.handshake.type == 1 && ip.src == 192.168.1.105
+/* Luego: clic derecho → Follow → TLS Stream */</code></pre>
+      </div>
+
+      <h2>Columns útiles para agregar en Wireshark</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Campo</th>
+            <th>Field name (para Custom Column)</th>
+            <th>Uso</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Versión TLS</td>
+            <td><code>tls.handshake.version</code></td>
+            <td>Detectar clientes legacy</td>
+          </tr>
+          <tr>
+            <td>SNI (Server Name)</td>
+            <td><code>tls.handshake.extensions_server_name</code></td>
+            <td>Ver dominio contactado sin descifrar</td>
+          </tr>
+          <tr>
+            <td>ALPN</td>
+            <td><code>tls.handshake.extensions_alpn_str</code></td>
+            <td>Protocolo de aplicación (h2, http/1.1, etc.)</td>
+          </tr>
+          <tr>
+            <td>Cipher seleccionado</td>
+            <td><code>tls.handshake.ciphersuite</code></td>
+            <td>En Server Hello — algoritmo negociado</td>
+          </tr>
+          <tr>
+            <td>Cert Subject</td>
+            <td><code>x509sat.uTF8String</code></td>
+            <td>CN del certificado del servidor</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </div><!-- /#tab-filters -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 2 — EXTRACCIÓN JA3 EN WIRESHARK
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-ja3extract">
+
+      <div class="section-intro">
+        <p><strong>Wireshark 3.x+</strong> puede mostrar el hash JA3 directamente en el panel de detalle
+        del paquete sin plugins adicionales. También existe el plugin Lua para versiones antiguas.</p>
+      </div>
+
+      <h2>Método 1 — JA3 nativo en Wireshark 3.3+</h2>
+
+      <p>Desde Wireshark 3.3, el disector TLS calcula JA3 automáticamente. Para verlo:</p>
+
+      <ol>
+        <li>Abrí el PCAP con un Client Hello TLS</li>
+        <li>Seleccioná un paquete con <code>tls.handshake.type == 1</code></li>
+        <li>En el panel de detalle, expandí: <strong>Transport Layer Security → TLSv1.3 Record Layer → Handshake Protocol: Client Hello → JA3 Fullstring / JA3</strong></li>
+        <li>El campo <code>JA3</code> muestra el hash MD5 de 32 chars</li>
+      </ol>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">WIRESHARK FIELD</span>
+          <span class="code-block-desc">Filtro de display para el hash JA3</span>
+        </div>
+        <pre><code>/* Ver solo paquetes con hash JA3 calculado */
+tls.handshake.ja3
+
+/* Filtrar por hash JA3 específico — Metasploit */
+tls.handshake.ja3 == "e7d705a3286e19ea42f587b344ee6865"
+
+/* Buscar Cobalt Strike default */
+tls.handshake.ja3 == "de350869b8c85de67a350c8d186f11e6"
+
+/* Buscar cualquier hash que NO sea browser conocido */
+tls.handshake.ja3 && !(
+  tls.handshake.ja3 == "773906b0efdefa24a7f2b8eb6985bf37" ||
+  tls.handshake.ja3 == "53b7c45e93f5d2f5765a1cf5e61c1e26" ||
+  tls.handshake.ja3 == "07f3d598e197f6255e17ef9b0c6cd22a"
+)</code></pre>
+      </div>
+
+      <h2>Método 2 — Script Lua para versiones antiguas</h2>
+
+      <p>Si usás Wireshark < 3.3, podés instalar el script Lua de JA3:</p>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">BASH</span>
+          <span class="code-block-desc">Instalación del plugin JA3 para Wireshark</span>
+        </div>
+        <pre><code># Descargar el plugin oficial de Salesforce
+curl -o ~/.config/wireshark/plugins/ja3.lua \
+  https://raw.githubusercontent.com/salesforce/ja3/master/wireshark_plugin/ja3.lua
+
+# O en Windows (PowerShell):
+# $dest = "$env:APPDATA\Wireshark\plugins\ja3.lua"
+# Invoke-WebRequest -Uri "https://raw.githubusercontent.com/salesforce/ja3/main/wireshark_plugin/ja3.lua" -OutFile $dest
+
+# Reiniciar Wireshark y buscar:
+# Analyze → Reload Lua Plugins (Ctrl+Shift+L)</code></pre>
+      </div>
+
+      <h2>Exportar todos los hashes JA3 de un PCAP</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">WIRESHARK</span>
+          <span class="code-block-desc">File → Export Packet Dissections → As CSV</span>
+        </div>
+        <pre><code>/* Paso 1: Aplicar filtro para solo Client Hello con JA3 */
+tls.handshake.ja3
+
+/* Paso 2: File → Export Packet Dissections → As CSV */
+/* Campos sugeridos: Frame, Time, Source, Destination, JA3 */
+
+/* El CSV resultante permite correlación masiva en Python/Excel */</code></pre>
+      </div>
+
+      <blockquote>
+        <strong>Tip de análisis:</strong> Exportá el CSV a Python con <code>pandas</code> y usá
+        <code>df['ja3'].value_counts()</code> para ver los hashes más frecuentes en tu captura.
+        Un hash muy frecuente proveniente de múltiples IPs puede indicar un C2 distribuido.
+      </blockquote>
+
+    </div><!-- /#tab-ja3extract -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 3 — tshark EN LÍNEA DE COMANDOS
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-tshark">
+
+      <div class="section-intro">
+        <p><strong>tshark</strong> es la versión CLI de Wireshark. Ideal para análisis automatizado,
+        scripting y procesamiento de PCAPs grandes en servidores sin GUI. Fundamental para pipelines SOC.</p>
+      </div>
+
+      <h2>Extracción básica de campos JA3</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">BASH · tshark</span>
+          <span class="code-block-desc">Extraer todos los hashes JA3 de un PCAP</span>
+        </div>
+        <pre><code># Extraer: timestamp, src_ip, dst_ip, dst_port, ja3_hash, sni
+tshark -r captura.pcap \
+  -Y "tls.handshake.type == 1" \
+  -T fields \
+  -e frame.time_epoch \
+  -e ip.src \
+  -e ip.dst \
+  -e tcp.dstport \
+  -e tls.handshake.ja3 \
+  -e tls.handshake.extensions_server_name \
+  -E header=y \
+  -E separator=, \
+  -E quote=d \
+  > ja3_output.csv
+
+# Resultado ejemplo:
+# "frame.time_epoch","ip.src","ip.dst","tcp.dstport","tls.handshake.ja3","tls..."
+# "1704067200.000","192.168.1.105","185.220.101.4","443","e7d705a3286e19ea42f587b344ee6865","update.evil.com"</code></pre>
+      </div>
+
+      <h2>Búsqueda de hash JA3 específico en tiempo real</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">BASH · tshark</span>
+          <span class="code-block-desc">Captura en vivo — alertar si aparece Metasploit</span>
+        </div>
+        <pre><code># Captura en vivo en la interfaz eth0
+# Alerta si detecta hash JA3 de Metasploit
+tshark -i eth0 \
+  -Y "tls.handshake.ja3 == \"e7d705a3286e19ea42f587b344ee6865\"" \
+  -T fields \
+  -e frame.time \
+  -e ip.src \
+  -e ip.dst \
+  -e tcp.dstport \
+  -e tls.handshake.ja3 \
+  -e tls.handshake.extensions_server_name \
+  2>/dev/null | while IFS= read -r line; do
+    echo "[ALERTA JA3 - METASPLOIT] $line"
+    # Aquí podrías enviar a Slack, SIEM, o ejecutar un bloqueo automático
+  done</code></pre>
+      </div>
+
+      <h2>Script Python para análisis masivo de JA3</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">PYTHON</span>
+          <span class="code-block-desc">Análisis de PCAP con pyshark + correlación de threat intel</span>
+        </div>
+        <pre><code>#!/usr/bin/env python3
+"""
+ja3_analyzer.py — Análisis de huellas JA3 en PCAPs
+Uso: python3 ja3_analyzer.py captura.pcap
+"""
+import subprocess
+import csv
+import sys
+from collections import Counter
+
+# ── Base de firmas conocidas (en producción: cargar desde feed) ──
+KNOWN_MALICIOUS = {
+    "e7d705a3286e19ea42f587b344ee6865": "Metasploit Meterpreter",
+    "de350869b8c85de67a350c8d186f11e6": "Cobalt Strike (pre-4.x)",
+    "8bab54f22de07d88e90f5e8e5edb5a69": "Emotet C2",
+    "19e29534fd49dd27d09234e7b95b86c1": "Dridex / BitPaymer",
+}
+
+def extract_ja3(pcap_file):
+    """Usa tshark para extraer campos JA3 del PCAP."""
+    cmd = [
+        "tshark", "-r", pcap_file,
+        "-Y", "tls.handshake.type == 1",
+        "-T", "fields",
+        "-e", "ip.src",
+        "-e", "ip.dst",
+        "-e", "tcp.dstport",
+        "-e", "tls.handshake.ja3",
+        "-e", "tls.handshake.extensions_server_name",
+        "-E", "separator=|",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    return result.stdout.strip().split("\n") if result.stdout else []
+
+def analyze(pcap_file):
+    records = extract_ja3(pcap_file)
+    hashes  = []
+    alerts  = []
+
+    for line in records:
+        parts = line.split("|")
+        if len(parts) < 4 or not parts[3]:
+            continue
+
+        src, dst, port, ja3, sni = parts + [""] * (5 - len(parts))
+        hashes.append(ja3)
+
+        if ja3 in KNOWN_MALICIOUS:
+            alerts.append({
+                "hash": ja3, "name": KNOWN_MALICIOUS[ja3],
+                "src": src, "dst": dst, "sni": sni or "(sin SNI)"
+            })
+
+    print(f"\n=== JA3 Analysis: {pcap_file} ===")
+    print(f"Total Client Hello packets: {len(records)}")
+    print(f"Unique JA3 hashes: {len(set(hashes))}")
+
+    print("\n── Top 5 hashes más frecuentes ──")
+    for h, count in Counter(hashes).most_common(5):
+        tag = f"  ⚠ {KNOWN_MALICIOUS[h]}" if h in KNOWN_MALICIOUS else ""
+        print(f"  {h}  ×{count}{tag}")
+
+    if alerts:
+        print(f"\n🔴 ALERTAS ({len(alerts)} detecciones):")
+        for a in alerts:
+            print(f"  [{a['name']}] {a['src']} → {a['dst']} (SNI: {a['sni']})")
+    else:
+        print("\n✅ Sin hashes maliciosos conocidos detectados.")
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Uso: python3 ja3_analyzer.py <archivo.pcap>")
+        sys.exit(1)
+    analyze(sys.argv[1])</code></pre>
+      </div>
+
+      <h2>Exportar JA3 con campos de contexto completos</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">BASH · tshark</span>
+          <span class="code-block-desc">Todos los campos útiles para correlación en SIEM</span>
+        </div>
+        <pre><code># Exportación completa para ingestión en SIEM
+tshark -r captura.pcap \
+  -Y "tls.handshake.type == 1" \
+  -T fields \
+  -e frame.number \
+  -e frame.time_epoch \
+  -e eth.src \
+  -e eth.dst \
+  -e ip.src \
+  -e ip.dst \
+  -e tcp.srcport \
+  -e tcp.dstport \
+  -e tls.handshake.version \
+  -e tls.handshake.ja3 \
+  -e tls.handshake.ja3_full \
+  -e tls.handshake.extensions_server_name \
+  -e tls.handshake.extensions_alpn_str \
+  -E header=y -E separator=, -E quote=d \
+  > siem_ja3_export.csv</code></pre>
+      </div>
+
+    </div><!-- /#tab-tshark -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 4 — WORKFLOW SOC CON WIRESHARK
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-workflow">
+
+      <div class="section-intro">
+        <p><strong>Flujo de análisis forense</strong> con Wireshark para investigar una alerta de JA3 malicioso.
+        Pasos ordenados por prioridad de tiempo — primero contención, luego análisis profundo.</p>
+      </div>
+
+      <h2>Checklist de análisis TLS con Wireshark</h2>
+
+      <!-- Usamos el mismo estilo de checklist del John lab pero sin JS de toggleo -->
+      <div class="soc-flow">
+
+        <div class="soc-step">
+          <div class="soc-step-icon">🎯</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Aislar el tráfico del host afectado</div>
+            <p class="soc-step-desc">
+              Aplicar filtro: <code>ip.src == [IP_SOSPECHOSA] || ip.dst == [IP_SOSPECHOSA]</code><br>
+              Verificar volumen de tráfico, cantidad de sesiones TLS y rangos horarios.
+              Un patrón de beacon (tráfico periódico cada N segundos) es indicativo de C2.
+            </p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">🔍</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Analizar el Client Hello sospechoso</div>
+            <p class="soc-step-desc">
+              Filtro: <code>ip.src == [IP] && tls.handshake.type == 1</code><br>
+              Expandir en el panel de detalle: ¿cuántas cipher suites ofrece? ¿Tiene SNI? ¿Qué extensiones?
+              Un Client Hello con pocas ciphers y sin SNI es un indicador fuerte de herramienta automatizada.
+            </p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">📋</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Registrar el hash JA3 y el SNI</div>
+            <p class="soc-step-desc">
+              Copiar el hash JA3 del panel de detalle (campo <code>tls.handshake.ja3</code>).
+              Copiar el SNI (<code>tls.handshake.extensions_server_name</code>) — el dominio contactado
+              puede estar en Alexa Top 1M (DGA que mimetiza dominios legítimos) o ser un DGA puro.
+            </p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">🔗</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Seguir el flujo TLS completo</div>
+            <p class="soc-step-desc">
+              Clic derecho en el paquete → <strong>Follow → TLS Stream</strong><br>
+              Si tenés la clave privada del servidor (entorno de lab o corporate proxy), podés descifrar.
+              Sin clave: observar tamaños de Application Data para inferir tipo de payload.
+              Patrones regulares de 300-800 bytes cada 30-60 seg → beacon C2.
+            </p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">📊</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Estadísticas de conversaciones</div>
+            <p class="soc-step-desc">
+              <strong>Statistics → Conversations → TCP</strong><br>
+              Ver duración, bytes transferidos y cantidad de paquetes por sesión.
+              C2 channels suelen tener sesiones largas con bajo volumen de datos (poll de comandos)
+              o sesiones cortas muy frecuentes (beaconing con jitter).
+            </p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">💾</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Exportar evidencia</div>
+            <p class="soc-step-desc">
+              <strong>File → Export Specified Packets</strong> → guardar el PCAP filtrado al flujo sospechoso.<br>
+              Hashear el PCAP con SHA256 para cadena de custodia: <code>sha256sum evidencia.pcap</code><br>
+              Documentar: timestamp, interfaz de captura, filtros aplicados, hash del archivo.
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      <h2>Comandos rápidos de referencia</h2>
+      <table>
+        <thead>
+          <tr><th>Objetivo</th><th>Filtro / Comando</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Ver todos los Client Hello</td>
+            <td><code>tls.handshake.type == 1</code></td>
+          </tr>
+          <tr>
+            <td>Ver hash JA3 en display</td>
+            <td><code>tls.handshake.ja3</code></td>
+          </tr>
+          <tr>
+            <td>Filtrar por JA3 específico</td>
+            <td><code>tls.handshake.ja3 == "hash32chars"</code></td>
+          </tr>
+          <tr>
+            <td>Client Hello sin SNI</td>
+            <td><code>tls.handshake.type==1 && !tls.handshake.extensions_server_name</code></td>
+          </tr>
+          <tr>
+            <td>TLS hacia puerto inusual</td>
+            <td><code>tls.handshake.type==1 && tcp.dstport != 443</code></td>
+          </tr>
+          <tr>
+            <td>Exportar JA3 a CSV (tshark)</td>
+            <td><code>tshark -r pcap -Y "tls.handshake.type==1" -T fields -e tls.handshake.ja3</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+    </div><!-- /#tab-workflow -->
+
+
+    <!-- ── Footer ── -->
+    <hr>
+    <p style="font-size:0.85rem; color:var(--text-muted)">
+      Continuá el lab TLS:
+      <a href="ja3.html">JA3 Core</a> ·
+      <a href="snort.html">Snort</a> ·
+      <a href="qradar.html">QRadar</a> ·
+      <a href="fortigate.html">FortiGate</a> ·
+      <a href="../../teoria/05_tls.html">Teoría TLS</a>
+    </p>
+
+    <a href="../../index.html">← Volver al inicio</a>
+
+  </div>
+
+  <!-- Tab navigation — reutilizamos el mismo initTabs() del ja3-lab.js -->
+  <script src="../../assets/js/ja3-lab.js"></script>
+  <script>
+    // En páginas secundarias solo necesitamos la navegación por tabs
+    document.addEventListener('DOMContentLoaded', () => {
+      // initTabs() ya se llama dentro de ja3-lab.js al DOMContentLoaded
+      // No se necesita código adicional para esta página
+    });
+  </script>
+</body>
+</html>

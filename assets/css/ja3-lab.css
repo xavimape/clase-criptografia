@@ -1,0 +1,680 @@
+/* =============================================================
+   ja3-lab.css — Estilos del Laboratorio TLS / JA3 Fingerprinting
+   Integrado con el tema dark cyber del sitio principal.
+   Requiere style.css y john-lab.css cargados primero.
+   ============================================================= */
+
+/* ── Sub-navegación entre páginas del lab TLS ────────────────── */
+/* Permite navegar entre ja3.html, wireshark.html, snort.html, etc. */
+.lab-subnav {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.75rem;
+  padding: 0.65rem 0.85rem;
+  background: rgba(0, 212, 255, 0.03);
+  border: 1px solid rgba(0, 212, 255, 0.12);
+  border-radius: var(--radius);
+  align-items: center;
+}
+
+.lab-subnav-label {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  margin-right: 0.35rem;
+  white-space: nowrap;
+}
+
+.lab-subnav-link {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid rgba(0, 212, 255, 0.16);
+  border-radius: 0.3rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.lab-subnav-link:hover {
+  color: var(--accent);
+  border-color: rgba(0, 212, 255, 0.38);
+  background: rgba(0, 212, 255, 0.06);
+}
+
+.lab-subnav-link.active {
+  color: var(--accent);
+  border-color: rgba(0, 212, 255, 0.4);
+  background: rgba(0, 212, 255, 0.08);
+  font-weight: 600;
+}
+
+/* ── Diagrama de flujo TLS Client Hello ──────────────────────── */
+/* Representación visual del paquete TLS paso a paso */
+.tls-packet {
+  background: #060a10;
+  border: 1px solid rgba(0, 212, 255, 0.2);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin: 1.25rem 0;
+  font-family: var(--font-mono);
+}
+
+.tls-packet-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1.1rem;
+  background: #0d1117;
+  border-bottom: 1px solid rgba(0, 212, 255, 0.1);
+}
+
+.tls-packet-title {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.tls-packet-badge {
+  font-size: 0.6rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.2rem;
+  letter-spacing: 0.06em;
+}
+
+.badge-client { background: rgba(0, 212, 255, 0.12); color: var(--accent);  border: 1px solid rgba(0, 212, 255, 0.3); }
+.badge-server { background: rgba(57, 255, 20, 0.08); color: #39ff14;        border: 1px solid rgba(57, 255, 20, 0.25); }
+.badge-alert  { background: rgba(255, 45, 85, 0.1);  color: #ff2d55;        border: 1px solid rgba(255, 45, 85, 0.3); }
+
+/* Campos del paquete TLS — visualización por capas */
+.tls-fields {
+  padding: 0.85rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.tls-field {
+  display: grid;
+  grid-template-columns: 160px 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.3rem;
+  transition: background 0.15s;
+  cursor: default;
+  font-size: 0.78rem;
+}
+
+.tls-field:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+/* Campo que JA3 usa — resaltado especialmente */
+.tls-field.ja3-field {
+  background: rgba(0, 212, 255, 0.05);
+  border-left: 2px solid var(--accent);
+  padding-left: 0.85rem;
+}
+
+.tls-field.ja3-field:hover {
+  background: rgba(0, 212, 255, 0.08);
+}
+
+.tls-field-name {
+  color: #a8d8ea;    /* azul terminal */
+  letter-spacing: 0.02em;
+}
+
+.tls-field-value {
+  color: #7ec8a0;    /* verde terminal */
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.tls-field-note {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Badge "JA3 usa este campo" */
+.ja3-tag {
+  display: inline-block;
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  padding: 0.12rem 0.4rem;
+  background: rgba(0, 212, 255, 0.12);
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  border-radius: 0.2rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ── Calculadora JA3 — pasos de extracción ───────────────────── */
+/* Muestra el proceso de construcción de la firma paso a paso */
+.ja3-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 1.25rem 0;
+}
+
+.ja3-step {
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  gap: 0.85rem;
+  align-items: flex-start;
+  opacity: 0.4;
+  transition: opacity 0.3s ease;
+}
+
+/* El paso se activa cuando el usuario calcula */
+.ja3-step.active {
+  opacity: 1;
+}
+
+.ja3-step-num {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: rgba(0, 212, 255, 0.08);
+  border: 1px solid rgba(0, 212, 255, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+}
+
+.ja3-step.active .ja3-step-num {
+  background: rgba(0, 212, 255, 0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ja3-step-body {
+  padding-top: 0.15rem;
+}
+
+.ja3-step-title {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+  transition: color 0.3s;
+}
+
+.ja3-step.active .ja3-step-title {
+  color: var(--accent);
+}
+
+.ja3-step-output {
+  background: #0d1117;
+  border: 1px solid rgba(0, 212, 255, 0.1);
+  border-radius: 0.35rem;
+  padding: 0.55rem 0.85rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: #a8d8ea;
+  word-break: break-all;
+  line-height: 1.55;
+  min-height: 2.2rem;
+  transition: border-color 0.3s, color 0.3s;
+}
+
+.ja3-step.active .ja3-step-output {
+  border-color: rgba(0, 212, 255, 0.22);
+}
+
+/* El último paso (hash MD5) tiene color especial */
+.ja3-step:last-child.active .ja3-step-output {
+  color: var(--accent);
+  border-color: rgba(0, 212, 255, 0.4);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  box-shadow: 0 0 18px rgba(0, 212, 255, 0.08);
+}
+
+/* ── Hash output destacado ───────────────────────────────────── */
+/* El resultado final del hash JA3 */
+.ja3-hash-display {
+  background: #060a10;
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.25rem;
+  margin: 1rem 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.ja3-hash-display::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(0, 212, 255, 0.07), transparent 70%);
+  pointer-events: none;
+}
+
+.ja3-hash-label {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.ja3-hash-value {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  word-break: break-all;
+  line-height: 1.4;
+  position: relative;
+}
+
+/* ── Threat Intel — tarjetas de firmas conocidas ─────────────── */
+/* Tabla de hashes JA3 conocidos con clasificación de amenaza */
+.sig-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 1.25rem 0;
+}
+
+.sig-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.85rem 1rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid rgba(0, 212, 255, 0.1);
+  border-radius: var(--radius);
+  transition: all 0.18s ease;
+  cursor: default;
+}
+
+.sig-card:hover {
+  background: var(--bg-card-hover);
+  border-color: rgba(0, 212, 255, 0.22);
+}
+
+/* Clasificación por tipo de amenaza */
+.sig-card.malware  { border-left: 3px solid #ff2d55; }
+.sig-card.tool     { border-left: 3px solid #ffcc00; }
+.sig-card.benign   { border-left: 3px solid #39ff14; }
+.sig-card.c2       { border-left: 3px solid #ff6a00; }
+
+.sig-hash {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  word-break: break-all;
+}
+
+.sig-info {}
+
+.sig-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-white);
+  margin-bottom: 0.15rem;
+}
+
+.sig-detail {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.sig-badge {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 0.25rem;
+  white-space: nowrap;
+}
+
+.badge-malware { background: rgba(255, 45, 85, 0.12);  color: #ff2d55; border: 1px solid rgba(255, 45, 85, 0.28); }
+.badge-tool    { background: rgba(255, 204, 0, 0.1);   color: #ffcc00; border: 1px solid rgba(255, 204, 0, 0.28); }
+.badge-benign  { background: rgba(57, 255, 20, 0.08);  color: #39ff14; border: 1px solid rgba(57, 255, 20, 0.28); }
+.badge-c2      { background: rgba(255, 106, 0, 0.1);   color: #ff6a00; border: 1px solid rgba(255, 106, 0, 0.28); }
+
+/* ── Lookup input para búsqueda de firmas ────────────────────── */
+.lookup-result {
+  display: none;
+  margin-top: 0.85rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(0, 212, 255, 0.2);
+  background: rgba(0, 212, 255, 0.04);
+}
+
+.lookup-result.found-malware { border-color: rgba(255, 45, 85, 0.4); background: rgba(255, 45, 85, 0.05); }
+.lookup-result.found-tool    { border-color: rgba(255, 204, 0, 0.4); background: rgba(255, 204, 0, 0.05); }
+.lookup-result.found-benign  { border-color: rgba(57, 255, 20, 0.35); background: rgba(57, 255, 20, 0.04); }
+.lookup-result.not-found     { border-color: rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.02); }
+.lookup-result.visible       { display: block; animation: tabFadeIn 0.2s ease; }
+
+/* ── Flujo SOC — diagrama de respuesta ───────────────────────── */
+/* Pasos de detección y respuesta para analistas */
+.soc-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 1.25rem 0;
+  position: relative;
+}
+
+/* Línea vertical de conexión entre pasos */
+.soc-flow::before {
+  content: '';
+  position: absolute;
+  left: 1rem;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(to bottom, rgba(0, 212, 255, 0.3), rgba(0, 212, 255, 0.05));
+  z-index: 0;
+}
+
+.soc-step {
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  gap: 1rem;
+  padding: 0.35rem 0;
+  position: relative;
+  z-index: 1;
+}
+
+.soc-step-icon {
+  width: 2rem;
+  height: 2rem;
+  background: var(--bg);
+  border: 1px solid rgba(0, 212, 255, 0.25);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+  color: var(--accent);
+  z-index: 1;
+}
+
+.soc-step-content {
+  background: var(--bg-card);
+  border: 1px solid rgba(0, 212, 255, 0.1);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.soc-step-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-white);
+  margin-bottom: 0.3rem;
+}
+
+.soc-step-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ── Tool cards — Wireshark / Snort / QRadar / FortiGate ─────── */
+/* Tarjetas de herramientas SOC con enlaces a sub-laboratorios */
+.tool-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0.85rem;
+  margin: 1.25rem 0;
+}
+
+.tool-card {
+  background: var(--bg-card);
+  border: 1px solid rgba(0, 212, 255, 0.14);
+  border-radius: var(--radius);
+  padding: 1.1rem;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s ease;
+  display: block;
+  position: relative;
+  overflow: hidden;
+}
+
+.tool-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--accent-glow), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.2s;
+  border-radius: var(--radius);
+}
+
+.tool-card:hover {
+  border-color: var(--accent);
+  background: var(--bg-card-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 212, 255, 0.12);
+}
+
+.tool-card:hover::after { opacity: 1; }
+
+.tool-card-icon {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.tool-card-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-white);
+  margin-bottom: 0.25rem;
+  position: relative;
+  z-index: 1;
+}
+
+.tool-card-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── GREASE indicator ────────────────────────────────────────── */
+/* Muestra qué valores son GREASE y se excluyen del cálculo JA3 */
+.grease-tag {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  padding: 0.1rem 0.35rem;
+  background: rgba(255, 204, 0, 0.08);
+  border: 1px solid rgba(255, 204, 0, 0.22);
+  border-radius: 0.2rem;
+  color: #ffcc00;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-left: 0.3rem;
+  vertical-align: middle;
+}
+
+.grease-excluded {
+  text-decoration: line-through;
+  opacity: 0.45;
+  color: var(--text-muted) !important;
+}
+
+/* ── Campos input del calculador JA3 ────────────────────────── */
+/* Panel de entrada para el calculador interactivo */
+.ja3-input-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.ja3-input-full {
+  grid-column: 1 / -1;
+}
+
+/* ── Info tooltip / label ────────────────────────────────────── */
+.field-info {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  color: var(--text-muted);
+  margin-top: 0.3rem;
+  line-height: 1.45;
+}
+
+.field-info code {
+  font-size: 0.7em;
+}
+
+/* ── Indicador de amenaza para el resultado ──────────────────── */
+.threat-indicator {
+  display: none;
+  padding: 0.7rem 1rem;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  border-left: 3px solid;
+  margin-top: 0.85rem;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.threat-indicator.visible { display: block; animation: tabFadeIn 0.22s ease; }
+
+.threat-malware { border-color: #ff2d55; background: rgba(255, 45, 85, 0.06); color: rgba(255, 100, 120, 0.9); }
+.threat-tool    { border-color: #ffcc00; background: rgba(255, 204, 0, 0.05); color: rgba(220, 180, 0, 0.9); }
+.threat-benign  { border-color: #39ff14; background: rgba(57, 255, 20, 0.04); color: rgba(57, 200, 20, 0.9); }
+.threat-unknown { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.02); color: var(--text-muted); }
+
+/* ── Code block con número de línea opcional ─────────────────── */
+/* Para mostrar reglas Snort, queries AQL, configs FortiGate */
+.code-block {
+  background: #0d1117;
+  border: 1px solid rgba(0, 212, 255, 0.12);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 0 0 0 0;
+  margin: 1.25rem 0;
+  overflow: hidden;
+}
+
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 1rem;
+  background: rgba(0, 212, 255, 0.04);
+  border-bottom: 1px solid rgba(0, 212, 255, 0.08);
+}
+
+.code-block-lang {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+
+.code-block-desc {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+}
+
+.code-block pre {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  border-left: none;
+  padding: 1rem 1.25rem;
+  background: transparent;
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  .tls-field {
+    grid-template-columns: 130px 1fr;
+    grid-template-rows: auto auto;
+  }
+
+  .tls-field-note {
+    grid-column: 1 / -1;
+    text-align: left;
+    margin-top: 0.15rem;
+  }
+
+  .sig-card {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+  }
+
+  .sig-hash {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    font-size: 0.65rem;
+  }
+
+  .ja3-input-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tool-cards {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .lab-subnav {
+    gap: 0.25rem;
+  }
+
+  .lab-subnav-link {
+    font-size: 0.62rem;
+    padding: 0.28rem 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .tool-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .soc-flow::before {
+    display: none;
+  }
+
+  .ja3-hash-value {
+    font-size: 0.85rem;
+  }
+}

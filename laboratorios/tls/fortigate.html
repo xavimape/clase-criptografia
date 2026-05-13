@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FortiGate JA3 Lab — Cryptography for SOC Analysts</title>
+  <link rel="stylesheet" href="../../assets/css/style.css">
+  <link rel="stylesheet" href="../../assets/css/john-lab.css">
+  <link rel="stylesheet" href="../../assets/css/ja3-lab.css">
+</head>
+<body>
+
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <div class="container">
+
+    <a href="../index.html" class="section-back">← Laboratorios</a>
+
+    <header class="hero" style="text-align:left; margin-bottom:1.5rem">
+      <div class="hero-badge">🛡️ Lab · TLS Firewall · FortiGate / FortiAnalyzer</div>
+      <h1>FortiGate / FortiAnalyzer — JA3 y SSL Inspection</h1>
+      <p>Configuración de SSL/TLS inspection en FortiGate, logging de huellas JA3,
+      y análisis con FortiAnalyzer para detección de C2 en tráfico cifrado.</p>
+    </header>
+
+    <!-- ── Sub-navegación ── -->
+    <nav class="lab-subnav">
+      <span class="lab-subnav-label">TLS Lab →</span>
+      <a href="ja3.html"       class="lab-subnav-link">🔑 JA3 Core</a>
+      <a href="wireshark.html" class="lab-subnav-link">🦈 Wireshark</a>
+      <a href="snort.html"     class="lab-subnav-link">🐷 Snort</a>
+      <a href="qradar.html"    class="lab-subnav-link">📊 QRadar</a>
+      <a href="fortigate.html" class="lab-subnav-link active">🛡️ FortiGate</a>
+    </nav>
+
+    <!-- ── Tab Navigation ── -->
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="inspection">01 · SSL Inspection</button>
+      <button class="tab-btn"        data-tab="ja3logging">02 · JA3 Logging</button>
+      <button class="tab-btn"        data-tab="analyzer">03 · FortiAnalyzer</button>
+      <button class="tab-btn"        data-tab="appctrl">04 · Application Control</button>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 1 — CONFIGURACIÓN DE SSL/TLS INSPECTION
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content active" id="tab-inspection">
+
+      <div class="section-intro">
+        <p><strong>FortiOS 6.4+</strong> incluye logging nativo de huellas JA3 y JA3S como parte
+        del motor de SSL Inspection. Para obtener datos JA3, no es necesario hacer deep inspection
+        (descifrado) — JA3 se extrae del Client Hello sin certificado de CA intermedio.</p>
+      </div>
+
+      <h2>Modos de SSL Inspection en FortiGate</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Modo</th>
+            <th>¿Descifra?</th>
+            <th>¿JA3 disponible?</th>
+            <th>Caso de uso</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Certificate Inspection</strong></td>
+            <td style="color:#39ff14">No</td>
+            <td style="color:#39ff14">✓ Sí (Client Hello)</td>
+            <td>Productivo — bajo impacto, JA3 del cliente</td>
+          </tr>
+          <tr>
+            <td><strong>Full SSL Inspection (MITM)</strong></td>
+            <td style="color:#ffcc00">Sí</td>
+            <td style="color:#39ff14">✓ Sí + JA3S</td>
+            <td>AV, IPS, DLP sobre HTTPS — requiere CA en clientes</td>
+          </tr>
+          <tr>
+            <td><strong>No Inspection</strong></td>
+            <td style="color:#ff2d55">No</td>
+            <td style="color:#ff2d55">✗ No</td>
+            <td>Solo para tráfico excluido por compliance</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <blockquote>
+        <strong>Recomendación SOC:</strong> Para detección JA3 sin impacto en la experiencia del usuario,
+        usar <em>Certificate Inspection</em> en todas las políticas por defecto. Solo aplicar Full SSL
+        Inspection en segmentos críticos (servidores, VIPs) donde se necesite inspección de contenido.
+      </blockquote>
+
+      <h2>Configurar SSL Inspection Profile — GUI</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">FORTIGATE GUI</span>
+          <span class="code-block-desc">Security Profiles → SSL/SSH Inspection → New Profile</span>
+        </div>
+        <pre><code">Security Profiles → SSL/SSH Inspection → Create New
+
+Profile Name: SOC-Certificate-Inspection
+Inspection Method: Certificate Inspection  (no CA cert needed)
+
+── Protocol Port Mapping ──
+HTTPS: 443, 8443, 4443
+SMTP over SSL: 465
+POP3 over SSL: 995
+IMAP over SSL: 993
+Custom: Agregar 8888, 9999, 4444 (puertos C2 comunes)
+
+── SSL Certificate Inspection ──
+☑ Inspect SSL connections to reputable websites (ON por defecto)
+☑ Allow invalid SSL certificates: OFF  ← importante para detectar C2 con certs auto-firmados
+☑ Log SSL anomalies: ON                ← genera logs de versiones/ciphers débiles
+
+── JA3 Logging (FortiOS 6.4+) ──
+☑ Log SSL JA3 fingerprints: ON         ← habilita el campo ja3 en UTM logs
+
+Aplicar en: Firewall Policy → Security Profiles → SSL/SSH Inspection</code></pre>
+      </div>
+
+      <h2>Configurar SSL Inspection Profile — CLI FortiOS</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">FORTIOS CLI</span>
+          <span class="code-block-desc">config ssl-ssh-profile — configuración completa</span>
+        </div>
+        <pre><code># Crear perfil de Certificate Inspection con logging JA3
+config firewall ssl-ssh-profile
+    edit "SOC-Certificate-Inspection"
+        set comment "Certificate inspection con JA3 logging para SOC"
+
+        # Modo: solo inspección de certificados, sin descifrado
+        set ssl-negotiation-log enable       # Loguear handshake TLS
+        set ssl-server-cert-log enable       # Loguear cert del servidor
+
+        # Protocolo HTTPS
+        config https
+            set ports 443 8443 4443          # Agregar puertos adicionales si C2 usa otros
+            set status certificate-inspection
+        end
+
+        # TLS en puertos no estándar — sospechosos de C2
+        config ssl
+            set inspect-all enable           # Inspeccionar cualquier TLS, no solo HTTPS
+        end
+
+        # Habilitar logging de JA3 (requiere FortiOS 6.4.x+)
+        set ja3-enabled enable              # ← Campo clave para huellas JA3
+
+        # Rechazar conexiones con certificados autofirmados/expirados
+        # (C2 servers frecuentemente usan self-signed certs)
+        set invalid-server-cert block       # O "allow" + log si no querés bloquear
+
+        # Versiones TLS obsoletas — bloquear o alertar
+        set min-allowed-ssl-version tls-1.2  # No permitir TLS 1.0/1.1
+    next
+end
+
+# Aplicar el perfil a una política de firewall existente
+config firewall policy
+    edit 10    # ID de la política LAN→WAN
+        set ssl-ssh-profile "SOC-Certificate-Inspection"
+        set logtraffic all                  # Loguear todo el tráfico
+        set logtraffic-start enable         # Log al inicio de la sesión
+    next
+end</code></pre>
+      </div>
+
+    </div><!-- /#tab-inspection -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 2 — LOGGING DE JA3 EN FORTIOS
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-ja3logging">
+
+      <div class="section-intro">
+        <p>Una vez habilitado el SSL Inspection Profile con JA3, FortiGate incluye los campos
+        <code>ja3</code> y <code>ja3s</code> en los logs UTM. Estos logs pueden verse en el
+        GUI, exportarse a FortiAnalyzer o enviarse a un SIEM externo vía Syslog.</p>
+      </div>
+
+      <h2>Verificar que JA3 aparece en los logs</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">FORTIOS CLI</span>
+          <span class="code-block-desc">Verificar logs de sesiones TLS con JA3</span>
+        </div>
+        <pre><code># Ver logs UTM en tiempo real (últimos 20 eventos TLS)
+# Buscar el campo ja3= en la salida
+execute log filter field ja3 "e7d705a3286e19ea42f587b344ee6865"
+execute log display
+
+# Buscar en los logs de FortiGate directamente (debug):
+diagnose debug application ssl -1
+# Presionar Ctrl+C cuando hayas capturado suficiente
+
+# Ver el log más reciente de SSL en la CLI:
+execute log filter category 5   # UTM logs
+execute log filter field action encrypt
+execute log display              # Mostrar
+
+# Formato de un log UTM SSL con JA3 (FortiOS 6.4+):
+# type=utm subtype=ssl action=passthrough
+# srcip=192.168.1.105 srcport=52341
+# dstip=185.220.101.4 dstport=443
+# profile=SOC-Certificate-Inspection
+# sni=update.example.com
+# ja3="e7d705a3286e19ea42f587b344ee6865"        ← Hash JA3 del cliente
+# ja3s="649d6810e8392f63dc311eecb6b7098b"       ← Hash JA3S del servidor
+# msg="SSL connection inspect"</code></pre>
+      </div>
+
+      <h2>Configurar envío de logs a SIEM (Syslog)</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">FORTIOS CLI</span>
+          <span class="code-block-desc">Syslog hacia QRadar / Splunk / SIEM externo</span>
+        </div>
+        <pre><code"># Configurar syslog con los campos relevantes para JA3
+config log syslogd setting
+    set status enable
+    set server 10.0.0.50         # IP del SIEM / Syslog collector
+    set port 514
+    set mode udp                  # UDP o TCP dependiendo del SIEM
+    set facility local7           # Facility syslog
+    set format rfc5424            # o "default" para formato FortiGate
+    set priority default          # Loguear todos los niveles
+end
+
+# Especificar qué tipos de log enviar al syslog
+config log syslogd filter
+    set severity information      # Incluir todos los logs desde "information" hacia arriba
+    set forward-traffic enable    # Logs de sesiones (incluyen JA3)
+    set utm-virus enable
+    set utm-ips enable
+    set utm-app-ctrl enable
+    set utm-ssl enable            # ← CRÍTICO: logs UTM SSL contienen JA3
+end
+
+# Verificar que los logs llegan al SIEM:
+# En QRadar: Log Activity → buscar "source: FortiGate" y campo "ja3"
+# En Splunk: index=firewall sourcetype=fortigate | stats count by ja3</code></pre>
+      </div>
+
+      <h2>Formato del log FortiGate para SIEM</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">LOG FORMAT</span>
+          <span class="code-block-desc">Estructura del log UTM SSL de FortiGate</span>
+        </div>
+        <pre><code"># Log SSL de FortiGate (formato key=value, un evento por línea)
+# Los campos varían según la versión de FortiOS
+
+date=2024-01-15 time=10:30:00 devname=FW-OFFICE devid=FG3H1E5819000000
+logid=1702065506 type=utm subtype=ssl level=information vd=root
+eventtime=1705311000000000000 tz="-0300"
+policyid=10 policytype=policy
+sessionid=987654321
+srcip=192.168.1.105 srcport=52341 srcintf="LAN" srcintfrole=lan
+dstip=185.220.101.4  dstport=443  dstintf="WAN" dstintfrole=wan
+proto=6 action=passthrough
+profile="SOC-Certificate-Inspection"
+sni="c2.bad-domain.example"                          # Server Name Indication
+tlsver="TLS1.2"                                      # Versión negociada
+ja3="e7d705a3286e19ea42f587b344ee6865"               # ← Hash JA3 cliente
+ja3s="649d6810e8392f63dc311eecb6b7098b"              # ← Hash JA3S servidor
+certcn="Fake Corp LLC"                               # CN del cert del servidor
+certiss="Self Signed"                                # Emisor
+certvalidfrom="2024-01-01" certvalidto="2025-01-01"
+msg="SSL connection inspect"
+dir=outgoing
+sentbyte=1024 rcvdbyte=2048
+duration=120</code></pre>
+      </div>
+
+    </div><!-- /#tab-ja3logging -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 3 — FORTIANALYZER
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-analyzer">
+
+      <div class="section-intro">
+        <p><strong>FortiAnalyzer</strong> centraliza los logs de todos los FortiGates de la organización
+        y provee una interfaz para queries SQL-like (FAZ Query Language) y dashboards de seguridad.
+        Los campos JA3 del SSL log son consultables directamente.</p>
+      </div>
+
+      <h2>Queries en FortiAnalyzer — Log View</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">FORTIANALYZER QUERY</span>
+          <span class="code-block-desc">Log View → Add Filter — buscar por hash JA3</span>
+        </div>
+        <pre><code"># En FortiAnalyzer: Log View → (seleccionar FortiGate) → UTM Logs → SSL Logs
+# Agregar filtros:
+
+Filtro simple:
+  ja3 = "e7d705a3286e19ea42f587b344ee6865"       # Metasploit
+
+Filtro por múltiples hashes (OR):
+  ja3 in ["e7d705a3286e19ea42f587b344ee6865",
+           "de350869b8c85de67a350c8d186f11e6",
+           "8bab54f22de07d88e90f5e8e5edb5a69"]
+
+Filtro combinado — JA3 inusual desde red interna:
+  ja3 = "51c64c77e60f3980eea90869b68c58a8"       # Golang
+  AND srcip startswith "192.168."
+  AND dstport != 443
+
+# Vista de tabla recomendada: date | time | srcip | dstip | sni | ja3 | tlsver</code></pre>
+      </div>
+
+      <h2>Reports personalizados con JA3</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">FORTIANALYZER SQL</span>
+          <span class="code-block-desc">Report Builder — Dataset SQL para huellas JA3</span>
+        </div>
+        <pre><code"># Reports → Report Definitions → New → Dataset → SQL
+
+-- Dataset: Top JA3 hashes (último día)
+SELECT
+    ja3,
+    ja3s,
+    sni,
+    COUNT(DISTINCT srcip)  AS hosts_origen,
+    COUNT(*)               AS total_conexiones,
+    MIN(itime)             AS primera_vez,
+    MAX(itime)             AS ultima_vez
+FROM $log-ssl-all           -- vista de logs SSL de todos los devices
+WHERE
+    ja3 IS NOT NULL
+    AND ja3 != ''
+    AND itime >= NOW() - 86400  -- últimas 24 horas (en segundos para FAZ)
+GROUP BY ja3, ja3s, sni
+ORDER BY total_conexiones DESC
+LIMIT 20
+
+-- Dataset: Hosts con JA3 de malware conocido
+SELECT
+    srcip,
+    dstip,
+    dstport,
+    sni,
+    ja3,
+    tlsver,
+    itime AS timestamp,
+    CASE ja3
+        WHEN 'e7d705a3286e19ea42f587b344ee6865' THEN 'Metasploit Meterpreter'
+        WHEN 'de350869b8c85de67a350c8d186f11e6' THEN 'Cobalt Strike'
+        WHEN '8bab54f22de07d88e90f5e8e5edb5a69' THEN 'Emotet C2'
+        WHEN '19e29534fd49dd27d09234e7b95b86c1' THEN 'Dridex'
+        ELSE 'Other Malicious'
+    END AS threat_name
+FROM $log-ssl-all
+WHERE
+    ja3 IN (
+        'e7d705a3286e19ea42f587b344ee6865',
+        'de350869b8c85de67a350c8d186f11e6',
+        '8bab54f22de07d88e90f5e8e5edb5a69',
+        '19e29534fd49dd27d09234e7b95b86c1'
+    )
+    AND itime >= NOW() - 86400
+ORDER BY itime DESC</code></pre>
+      </div>
+
+      <h2>Alertas en FortiAnalyzer</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">FORTIANALYZER</span>
+          <span class="code-block-desc">Event Management → Alert Policy — JA3 malicioso</span>
+        </div>
+        <pre><code"># Event Management → Policy → Add Policy
+
+Policy Name: JA3 Malicious Hash Detected
+Log Type: UTM (SSL)
+Severity: Critical
+
+Condition (AND):
+  - Log field "ja3" matches: e7d705a3286e19ea42f587b344ee6865 OR
+                              de350869b8c85de67a350c8d186f11e6 OR
+                              8bab54f22de07d88e90f5e8e5edb5a69
+
+Notification:
+  - Send email to: soc-team@empresa.com
+  - Subject: [ALERTA CRÍTICA] JA3 Malicioso detectado en {{devname}}
+  - Body:
+    Timestamp: {{itime}}
+    Host origen: {{srcip}}
+    Destino: {{dstip}}:{{dstport}}
+    SNI: {{sni}}
+    JA3 Hash: {{ja3}}
+    Dispositivo: {{devname}}
+
+    ⚠ Este hash está asociado con malware C2.
+    Investigar el host origen INMEDIATAMENTE.
+
+Throttle: 1 alerta por (srcip, ja3) cada 30 minutos (evitar flood)</code></pre>
+      </div>
+
+    </div><!-- /#tab-analyzer -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 4 — APPLICATION CONTROL Y BLOQUEO
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-appctrl">
+
+      <div class="section-intro">
+        <p><strong>Application Control</strong> de FortiGate puede bloquear tráfico basado en
+        la firma de la aplicación detectada a nivel TLS. En FortiOS 7.x, se puede crear
+        firmas de aplicación personalizadas usando campos JA3 para bloqueo proactivo.</p>
+      </div>
+
+      <h2>Custom Application Signature basada en JA3</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">FORTIOS CLI</span>
+          <span class="code-block-desc">Firma de aplicación custom para Metasploit JA3</span>
+        </div>
+        <pre><code"># Crear una firma de aplicación personalizada para Metasploit
+# basada en la huella JA3
+
+config application custom
+    edit "Metasploit-Meterpreter-TLS"
+        set comment "Detección por JA3 hash de Meterpreter"
+        set protocol SSL                # Protocolo de detección
+        set technology Browser-Based    # Categoría
+        set category 21                 # Misc (ajustar según taxonomía)
+        set risk 5                      # Riesgo máximo
+
+        # Condición de match: contenido del Client Hello
+        # El JA3 hash no se puede buscar directamente como contenido
+        # en App Control — se usa la combinación de versión + cipher bytes
+        # Alternativamente, usar IPS custom signature:
+    next
+end
+
+# ── MEJOR OPCIÓN: IPS Custom Signature ────────────────────────────────────
+# IPS puede inspeccionar el payload TLS y hacer content matching
+config ips custom
+    edit "JA3-Metasploit-Meterpreter"
+        set comment "Bloquear TLS Client Hello de Meterpreter por cipher list"
+        set severity critical
+        set location client
+        set action block
+        set protocol TCP
+        set dst-port 443
+        # Patrón en el Client Hello de Meterpreter:
+        # Versión TLS 1.0 (0x0301) + cipher suites específicos
+        set signature
+            "F-SBID( --protocol TCP; --dst_port 443;
+             --content \"|16 03 01|\"; --within 3;
+             --content \"|00 04 05 0A 09 64|\"; --byte_jump 0,36;
+             --classtype trojan-activity; )"
+    next
+end</code></pre>
+      </div>
+
+      <h2>Integración con FortiGuard Threat Intelligence</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">FORTIOS CLI</span>
+          <span class="code-block-desc">Habilitar feeds de threat intel — IPs y dominios C2</span>
+        </div>
+        <pre><code"># FortiGuard incluye feeds de IPs y dominios C2 conocidos
+# Cuando hay un hit de JA3 sospechoso + IP en el feed de C2 → bloqueo automático
+
+# Habilitar todas las categorías de Botnet/C2 en la Web Filter:
+config webfilter profile
+    edit "SOC-Default"
+        config ftgd-wf
+            config filters
+                # Botnet C2 (categoría 26) — bloquear
+                edit 1
+                    set category 26
+                    set action block
+                end
+                # Malware sites (categoría 82) — bloquear
+                edit 2
+                    set category 82
+                    set action block
+                end
+                # Phishing (categoría 83) — bloquear
+                edit 3
+                    set category 83
+                    set action block
+                end
+            end
+        end
+    next
+end
+
+# Habilitar IPS signatures de Botnet (complementa JA3):
+config ips sensor
+    edit "SOC-IPS-Profile"
+        config entries
+            # Todas las firmas de Botnet
+            edit 1
+                set rule Botnet.*
+                set action block
+                set log enable
+            end
+        end
+    next
+end</code></pre>
+      </div>
+
+      <h2>Checklist de hardening TLS en FortiGate</h2>
+
+      <ul class="checklist" style="list-style:none; padding:0; margin:0 0 1.5rem">
+
+        <li class="check-item" onclick="this.classList.toggle('checked'); this.querySelector('.check-box').textContent = this.classList.contains('checked') ? '✓' : ''">
+          <div class="check-box"></div>
+          <div class="check-info">
+            <div class="check-title">Habilitar SSL Inspection Profile con ja3-enabled en todas las políticas</div>
+            <p class="check-desc">Sin esto, no hay visibilidad JA3. Mínimo: Certificate Inspection en políticas LAN→WAN.</p>
+          </div>
+        </li>
+
+        <li class="check-item" onclick="this.classList.toggle('checked'); this.querySelector('.check-box').textContent = this.classList.contains('checked') ? '✓' : ''">
+          <div class="check-box"></div>
+          <div class="check-info">
+            <div class="check-title">Bloquear versiones TLS < 1.2</div>
+            <p class="check-desc">config ssl-ssh-profile → set min-allowed-ssl-version tls-1.2</p>
+          </div>
+        </li>
+
+        <li class="check-item" onclick="this.classList.toggle('checked'); this.querySelector('.check-box').textContent = this.classList.contains('checked') ? '✓' : ''">
+          <div class="check-box"></div>
+          <div class="check-info">
+            <div class="check-title">Configurar envío de logs UTM SSL a FortiAnalyzer o SIEM</div>
+            <p class="check-desc">Sin centralización de logs, la visibilidad JA3 es solo local y difícil de correlacionar.</p>
+          </div>
+        </li>
+
+        <li class="check-item" onclick="this.classList.toggle('checked'); this.querySelector('.check-box').textContent = this.classList.contains('checked') ? '✓' : ''">
+          <div class="check-box"></div>
+          <div class="check-info">
+            <div class="check-title">Crear Alert Policy en FortiAnalyzer para hashes JA3 críticos</div>
+            <p class="check-desc">Notificación automática al equipo SOC cuando aparece un hash de malware conocido.</p>
+          </div>
+        </li>
+
+        <li class="check-item" onclick="this.classList.toggle('checked'); this.querySelector('.check-box').textContent = this.classList.contains('checked') ? '✓' : ''">
+          <div class="check-box"></div>
+          <div class="check-info">
+            <div class="check-title">Habilitar IPS con firmas de Botnet y C2</div>
+            <p class="check-desc">Complementa la detección JA3 con firmas de payload. Doble capa de detección.</p>
+          </div>
+        </li>
+
+        <li class="check-item" onclick="this.classList.toggle('checked'); this.querySelector('.check-box').textContent = this.classList.contains('checked') ? '✓' : ''">
+          <div class="check-box"></div>
+          <div class="check-info">
+            <div class="check-title">Revisar logs JA3 semanalmente y actualizar baseline</div>
+            <p class="check-desc">Los clientes TLS cambian con actualizaciones. Actualizar el baseline mensualmente para reducir FP.</p>
+          </div>
+        </li>
+
+        <li class="check-item" onclick="this.classList.toggle('checked'); this.querySelector('.check-box').textContent = this.classList.contains('checked') ? '✓' : ''">
+          <div class="check-box"></div>
+          <div class="check-info">
+            <div class="check-title">Configurar inspección TLS en puertos no estándar</div>
+            <p class="check-desc">C2 usa puertos 4444, 5555, 8888, 9999. Agregar al SSL profile y al Application Control.</p>
+          </div>
+        </li>
+
+      </ul>
+
+      <h2>Referencia de versiones — FortiOS y soporte JA3</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>FortiOS</th>
+            <th>JA3 en logs</th>
+            <th>JA3S</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>≤ 6.2</td>
+            <td style="color:#ff2d55">✗ No</td>
+            <td style="color:#ff2d55">✗ No</td>
+            <td>Actualizar — versión sin soporte</td>
+          </tr>
+          <tr>
+            <td>6.4.x</td>
+            <td style="color:#39ff14">✓ Sí</td>
+            <td style="color:#ffcc00">Parcial</td>
+            <td>Primer release con ja3 en SSL logs</td>
+          </tr>
+          <tr>
+            <td>7.0.x</td>
+            <td style="color:#39ff14">✓ Sí</td>
+            <td style="color:#39ff14">✓ Sí</td>
+            <td>JA3 + JA3S + mejoras en custom signatures</td>
+          </tr>
+          <tr>
+            <td>7.2.x+</td>
+            <td style="color:#39ff14">✓ Sí</td>
+            <td style="color:#39ff14">✓ Sí</td>
+            <td>Recomendado — mejor performance IPS/UTM</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </div><!-- /#tab-appctrl -->
+
+
+    <!-- ── Footer ── -->
+    <hr>
+    <p style="font-size:0.85rem; color:var(--text-muted)">
+      Continuá el lab TLS:
+      <a href="ja3.html">JA3 Core</a> ·
+      <a href="wireshark.html">Wireshark</a> ·
+      <a href="snort.html">Snort</a> ·
+      <a href="qradar.html">QRadar</a> ·
+      <a href="../../teoria/05_tls.html">Teoría TLS</a>
+    </p>
+
+    <a href="../../index.html">← Volver al inicio</a>
+
+  </div>
+
+  <script src="../../assets/js/ja3-lab.js"></script>
+  <script>
+    // Checklist simple para la pestaña de Application Control
+    // (sin dependencia de ja3-lab.js, funciona con el onclick inline)
+  </script>
+</body>
+</html>

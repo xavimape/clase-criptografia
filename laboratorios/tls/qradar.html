@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QRadar JA3 Lab — Cryptography for SOC Analysts</title>
+  <link rel="stylesheet" href="../../assets/css/style.css">
+  <link rel="stylesheet" href="../../assets/css/john-lab.css">
+  <link rel="stylesheet" href="../../assets/css/ja3-lab.css">
+</head>
+<body>
+
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <div class="container">
+
+    <a href="../index.html" class="section-back">← Laboratorios</a>
+
+    <header class="hero" style="text-align:left; margin-bottom:1.5rem">
+      <div class="hero-badge">📊 Lab · TLS SIEM · IBM QRadar</div>
+      <h1>IBM QRadar — Correlación JA3</h1>
+      <p>Queries AQL, Custom Properties y reglas de correlación para detectar
+      huellas TLS maliciosas en IBM QRadar SIEM.</p>
+    </header>
+
+    <!-- ── Sub-navegación ── -->
+    <nav class="lab-subnav">
+      <span class="lab-subnav-label">TLS Lab →</span>
+      <a href="ja3.html"       class="lab-subnav-link">🔑 JA3 Core</a>
+      <a href="wireshark.html" class="lab-subnav-link">🦈 Wireshark</a>
+      <a href="snort.html"     class="lab-subnav-link">🐷 Snort</a>
+      <a href="qradar.html"    class="lab-subnav-link active">📊 QRadar</a>
+      <a href="fortigate.html" class="lab-subnav-link">🛡️ FortiGate</a>
+    </nav>
+
+    <!-- ── Tab Navigation ── -->
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="ingest">01 · Ingestión de JA3</button>
+      <button class="tab-btn"        data-tab="aql">02 · Queries AQL</button>
+      <button class="tab-btn"        data-tab="rules">03 · Reglas de Correlación</button>
+      <button class="tab-btn"        data-tab="dashboard">04 · Dashboards</button>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 1 — INGESTIÓN DE DATOS JA3 EN QRADAR
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content active" id="tab-ingest">
+
+      <div class="section-intro">
+        <p><strong>QRadar</strong> no extrae JA3 por defecto — los datos deben venir de una fuente
+        que ya calcule el hash: Suricata, Zeek/Bro, FortiGate, un proxy con módulo JA3, o un
+        script de tshark. Una vez en QRadar, se mapean como Custom Properties.</p>
+      </div>
+
+      <h2>Arquitectura de ingestión recomendada</h2>
+
+      <!-- Diagrama de flujo de datos hacia QRadar -->
+      <div class="tls-packet" style="margin-bottom:1.5rem">
+        <div class="tls-packet-header">
+          <span class="terminal-dot red"></span>
+          <span class="terminal-dot amber"></span>
+          <span class="terminal-dot green"></span>
+          <span class="tls-packet-title">Data Flow — TLS/JA3 hacia QRadar SIEM</span>
+        </div>
+        <div class="tls-fields" style="gap:0.15rem">
+          <div class="tls-field">
+            <span class="tls-field-name" style="color:#39ff14">TAP / SPAN Port</span>
+            <span class="tls-field-value">Copia del tráfico de red → Suricata/Zeek</span>
+            <span class="tls-field-note">Sensor de red</span>
+          </div>
+          <div class="tls-field">
+            <span class="tls-field-name" style="color:#a8d8ea">Suricata (eve.json)</span>
+            <span class="tls-field-value">ja3.hash, ja3s.hash, sni, version → JSON logs</span>
+            <span class="tls-field-note">Extractor JA3</span>
+          </div>
+          <div class="tls-field">
+            <span class="tls-field-name" style="color:#ffcc00">Syslog / Log Source</span>
+            <span class="tls-field-value">eve.json → rsyslog/Filebeat → QRadar Log Source</span>
+            <span class="tls-field-note">Transporte</span>
+          </div>
+          <div class="tls-field ja3-field">
+            <span class="tls-field-name">QRadar DSM</span>
+            <span class="tls-field-value">Parsing del evento → Custom Properties JA3 mapeadas</span>
+            <span class="tls-field-note"><span class="ja3-tag">SIEM</span></span>
+          </div>
+          <div class="tls-field ja3-field">
+            <span class="tls-field-name">AQL / Rules</span>
+            <span class="tls-field-value">Queries y correlación sobre el campo ja3_hash</span>
+            <span class="tls-field-note"><span class="ja3-tag">Análisis</span></span>
+          </div>
+        </div>
+      </div>
+
+      <h2>Opción 1 — Fuente: Suricata eve.json</h2>
+
+      <p>La fuente más limpia. Suricata genera JSON estructurado con JA3. Configurar QRadar Log Source
+      para el endpoint de syslog donde Suricata envía sus alertas:</p>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">QRADAR CONFIG</span>
+          <span class="code-block-desc">Log Source — Suricata IDS</span>
+        </div>
+        <pre><code>Log Source Type: Suricata IDS (o "Universal CEF" si usás CEF output)
+Log Source Name: Suricata-Sensor-DC01
+Protocol: Syslog (UDP/TCP 514 o el puerto configurado)
+
+# Formato esperado del log Suricata (abreviado):
+# Jan 15 10:30:00 sensor01 suricata: {"timestamp":"...","event_type":"tls",
+# "src_ip":"192.168.1.105","dest_ip":"185.220.101.4","dest_port":443,
+# "tls":{"sni":"c2.evil.example","version":"TLS 1.2",
+# "ja3":{"hash":"e7d705a3286e19ea42f587b344ee6865","string":"769,..."}}}
+
+# DSM de Suricata en QRadar 7.5+ parsea el campo ja3.hash automáticamente
+# Verificar: Log Activity → columna "Custom Property: JA3 Hash"</code></pre>
+      </div>
+
+      <h2>Opción 2 — Fuente: Zeek (Bro) ssl.log</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">ZEEK / BRO</span>
+          <span class="code-block-desc">ssl.log — Zeek genera JA3 nativo desde v3.0</span>
+        </div>
+        <pre><code># Zeek ssl.log contiene el campo ja3 por defecto desde v3.0
+# Ejemplo de línea ssl.log:
+# ts          uid         id.orig_h      id.resp_h      version  ja3                              ja3s
+# 1704067200  CGfzId...   192.168.1.105  185.220.101.4  TLSv12   e7d705a3286e19ea42f587b344ee6865 649d6810...
+
+# Convertir ssl.log a JSON para QRadar:
+# zeek -r captura.pcap && cat ssl.log | zeek-cut ts uid id.orig_h ja3 | python3 -c "
+# import sys, json, csv
+# r = csv.DictReader(sys.stdin, delimiter='\t')
+# for row in r: print(json.dumps(row))" | logger -t zeek-ssl
+
+# En QRadar: Log Source Type = "Zeek Network Security Monitor"
+# El DSM de Zeek mapea ssl.log automáticamente</code></pre>
+      </div>
+
+      <h2>Crear Custom Properties para JA3</h2>
+      <p>Si el DSM no mapea JA3 automáticamente, crear Custom Properties manualmente:</p>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">QRADAR REGEX</span>
+          <span class="code-block-desc">Custom Property — extracción de JA3 hash con regex</span>
+        </div>
+        <pre><code"># Admin → Custom Event Properties → New Custom Property
+
+# Propiedad: JA3 Hash
+# Tipo de dato: Text
+# Optimización: Yes (para que sea buscable en AQL)
+# Expression Type: Regular Expression
+
+# Para logs de Suricata JSON:
+"ja3":\s*\{\s*"hash":\s*"([a-f0-9]{32})"
+
+# Para logs de Zeek (tab-separated):
+^[^\t]+\t[^\t]+\t[^\t]+\t[^\t]+\t[^\t]+\t([a-f0-9]{32})
+
+# Para logs de FortiGate (key=value format):
+ja3=["\s]*([a-f0-9]{32})
+
+# Para logs genéricos que incluyen el hash en cualquier posición:
+(?:ja3[_\.]hash|ja3["\s:=]+)["]*([a-f0-9]{32})
+
+# Propiedad: JA3 SNI (para correlación adicional)
+"sni":\s*"([^"]+)"
+
+# Verificar la regex en: Admin → Custom Event Properties → Test Expression</code></pre>
+      </div>
+
+    </div><!-- /#tab-ingest -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 2 — QUERIES AQL (ARIEL QUERY LANGUAGE)
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-aql">
+
+      <div class="section-intro">
+        <p><strong>AQL (Ariel Query Language)</strong> es el lenguaje SQL-like de QRadar para consultar
+        eventos y flows almacenados. Usado en Log Activity, Search y APIs. Los campos Custom Property
+        se referencian como <code>"JA3 Hash"</code> (con comillas si tienen espacios).</p>
+      </div>
+
+      <h2>Queries básicas de investigación JA3</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">AQL — QRADAR</span>
+          <span class="code-block-desc">Búsqueda de hash JA3 específico — último día</span>
+        </div>
+        <pre><code>-- Buscar todas las conexiones con un hash JA3 de Metasploit
+SELECT
+    DATEFORMAT(starttime, 'YYYY-MM-dd HH:mm:ss') AS timestamp,
+    sourceip,
+    destinationip,
+    destinationport,
+    "JA3 Hash",
+    "JA3 SNI",
+    eventcount
+FROM events
+WHERE
+    "JA3 Hash" = 'e7d705a3286e19ea42f587b344ee6865'  -- Metasploit
+    AND starttime > NOW() - 86400000  -- Últimas 24 horas (milisegundos)
+ORDER BY starttime DESC
+LAST 24 HOURS</code></pre>
+      </div>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">AQL — QRADAR</span>
+          <span class="code-block-desc">Top 10 hashes JA3 más frecuentes en la red</span>
+        </div>
+        <pre><code>-- Identificar qué huellas TLS dominan el tráfico
+-- Útil para establecer baseline y detectar anomalías
+SELECT
+    "JA3 Hash",
+    COUNT(*) AS conexiones,
+    COUNT(DISTINCT sourceip) AS hosts_origen,
+    COUNT(DISTINCT destinationip) AS destinos_unicos,
+    MIN(DATEFORMAT(starttime,'HH:mm')) AS primera_vez,
+    MAX(DATEFORMAT(starttime,'HH:mm')) AS ultima_vez
+FROM events
+WHERE
+    "JA3 Hash" IS NOT NULL
+    AND "JA3 Hash" != ''
+GROUP BY "JA3 Hash"
+ORDER BY conexiones DESC
+LIMIT 10
+LAST 7 DAYS</code></pre>
+      </div>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">AQL — QRADAR</span>
+          <span class="code-block-desc">Buscar múltiples hashes maliciosos conocidos</span>
+        </div>
+        <pre><code>-- Lista de hashes conocidos maliciosos (threat intel feed)
+-- Ideal para ejecutar diariamente como búsqueda programada
+SELECT
+    DATEFORMAT(starttime, 'YYYY-MM-dd HH:mm:ss') AS timestamp,
+    sourceip,
+    destinationip,
+    destinationport,
+    "JA3 Hash",
+    "JA3 SNI",
+    CASE "JA3 Hash"
+        WHEN 'e7d705a3286e19ea42f587b344ee6865' THEN 'Metasploit Meterpreter'
+        WHEN 'de350869b8c85de67a350c8d186f11e6' THEN 'Cobalt Strike default'
+        WHEN '8bab54f22de07d88e90f5e8e5edb5a69' THEN 'Emotet C2'
+        WHEN '19e29534fd49dd27d09234e7b95b86c1' THEN 'Dridex/BitPaymer'
+        WHEN 'a0e9f5d64349fb13191bc781f81f42e1' THEN 'Tor/Cobalt Strike overlap'
+        WHEN '6d1a47b7b9e7d98e1c7c9d82da2bf1a6' THEN 'AsyncRAT/QuasarRAT'
+        ELSE 'UNKNOWN'
+    END AS malware_family
+FROM events
+WHERE
+    "JA3 Hash" IN (
+        'e7d705a3286e19ea42f587b344ee6865',
+        'de350869b8c85de67a350c8d186f11e6',
+        '8bab54f22de07d88e90f5e8e5edb5a69',
+        '19e29534fd49dd27d09234e7b95b86c1',
+        'a0e9f5d64349fb13191bc781f81f42e1',
+        '6d1a47b7b9e7d98e1c7c9d82da2bf1a6'
+    )
+ORDER BY starttime DESC
+LAST 24 HOURS</code></pre>
+      </div>
+
+      <h2>Queries de detección de anomalías</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">AQL — QRADAR</span>
+          <span class="code-block-desc">Hosts con huellas JA3 inusuales — nunca vistas antes</span>
+        </div>
+        <pre><code>-- Hashes JA3 que aparecen hoy pero NO en los últimos 30 días
+-- Indicador de nuevas herramientas/malware en la red
+SELECT
+    "JA3 Hash",
+    sourceip,
+    COUNT(*) AS ocurrencias_hoy
+FROM events
+WHERE
+    "JA3 Hash" IS NOT NULL
+    AND "JA3 Hash" != ''
+    AND starttime > NOW() - 86400000          -- hoy
+    AND "JA3 Hash" NOT IN (
+        -- Subquery: hashes vistos en los últimos 30 días
+        SELECT DISTINCT "JA3 Hash"
+        FROM events
+        WHERE
+            "JA3 Hash" IS NOT NULL
+            AND starttime BETWEEN NOW() - 2678400000 AND NOW() - 86400000
+    )
+GROUP BY "JA3 Hash", sourceip
+ORDER BY ocurrencias_hoy DESC
+LAST 24 HOURS</code></pre>
+      </div>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">AQL — QRADAR</span>
+          <span class="code-block-desc">Patrón de beaconing — conexiones periódicas</span>
+        </div>
+        <pre><code>-- Detectar beaconing: mismo (src, dst, ja3) con alta frecuencia
+-- Los C2 beaconan cada 30-300 segundos con jitter
+SELECT
+    sourceip,
+    destinationip,
+    destinationport,
+    "JA3 Hash",
+    COUNT(*) AS total_conexiones,
+    (MAX(starttime) - MIN(starttime)) / (COUNT(*) * 1000.0) AS intervalo_promedio_seg,
+    MIN(DATEFORMAT(starttime, 'HH:mm:ss')) AS primera_conexion,
+    MAX(DATEFORMAT(starttime, 'HH:mm:ss')) AS ultima_conexion
+FROM events
+WHERE
+    "JA3 Hash" IS NOT NULL
+    AND "JA3 Hash" != ''
+GROUP BY sourceip, destinationip, destinationport, "JA3 Hash"
+HAVING
+    COUNT(*) >= 10                          -- mínimo 10 conexiones
+    AND intervalo_promedio_seg BETWEEN 20 AND 600  -- intervalo 20s-10min
+ORDER BY total_conexiones DESC
+LAST 6 HOURS</code></pre>
+      </div>
+
+    </div><!-- /#tab-aql -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 3 — REGLAS DE CORRELACIÓN
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-rules">
+
+      <div class="section-intro">
+        <p><strong>Reglas de correlación</strong> en QRadar generan Offenses automáticamente cuando
+        se detecta actividad sospechosa. Se configuran en <strong>Offenses → Rules → Create Rule</strong>.
+        Se basan en eventos individuales o en combinaciones (correlación multi-evento).</p>
+      </div>
+
+      <h2>Regla 1 — Hash JA3 de malware conocido</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">QRADAR RULE LOGIC</span>
+          <span class="code-block-desc">Regla simple — evento único con JA3 malicioso</span>
+        </div>
+        <pre><code">Rule Name: SOC-JA3-001 — Malware C2 JA3 Hash Detectado
+Rule Type: Event Rule
+Enabled: Yes
+Response: Create an Offense  |  Notify  |  Email (si severity = Critical)
+
+── Condición ──
+when the event matches the following custom event property:
+  [ Custom Property "JA3 Hash" ] matches one of the following values:
+    e7d705a3286e19ea42f587b344ee6865   (Metasploit)
+    de350869b8c85de67a350c8d186f11e6   (Cobalt Strike)
+    8bab54f22de07d88e90f5e8e5edb5a69   (Emotet)
+    19e29534fd49dd27d09234e7b95b86c1   (Dridex)
+    6d1a47b7b9e7d98e1c7c9d82da2bf1a6   (AsyncRAT)
+
+── Respuesta ──
+Offense Naming: "JA3 Malicioso: [JA3 Hash] desde [sourceip]"
+Offense Magnitude: 9 (Critical)
+Groups: Malware, TLS Anomaly
+Credibility: 5
+Severity: 9
+
+── Excepción ──
+Excluir IPs de pentest autorizado:
+  NOT sourceip matches reference set "Pentest_Authorized_IPs"</code></pre>
+      </div>
+
+      <h2>Regla 2 — JA3 nuevo no visto en 30 días (anomalía)</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">QRADAR RULE LOGIC</span>
+          <span class="code-block-desc">Regla de anomalía — nuevo hash JA3 en la red</span>
+        </div>
+        <pre><code>Rule Name: SOC-JA3-002 — Hash JA3 No Visto en 30 días
+Rule Type: Anomaly Rule (Behavioral)
+Enabled: Yes
+
+── Condición ──
+when the number of UNIQUE [ Custom Property: JA3 Hash ] values
+is greater than 0
+in 1 minute intervals
+for 3 or more times
+when the flow is NOT in reference set "JA3_Known_Baseline"
+
+── Alternative: Event Rule con Reference Set ──
+when Custom Property "JA3 Hash" is NOT contained in the Reference Set
+  "JA3_Known_Baseline"
+AND Custom Property "JA3 Hash" is not empty
+
+── Poblar la Reference Set de baseline ──
+-- Ejecutar esta AQL y exportar los resultados a la Reference Set:
+SELECT DISTINCT "JA3 Hash"
+FROM events
+WHERE "JA3 Hash" IS NOT NULL
+LAST 30 DAYS
+
+-- Admin → Reference Data → Reference Sets → JA3_Known_Baseline
+-- Importar el CSV con los hashes del baseline</code></pre>
+      </div>
+
+      <h2>Regla 3 — Correlación JA3 + IP reputation</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">QRADAR RULE LOGIC</span>
+          <span class="code-block-desc">Regla combinada — JA3 inusual hacia IP sospechosa</span>
+        </div>
+        <pre><code">Rule Name: SOC-JA3-003 — JA3 Dual-Use hacia IP de Baja Reputación
+Rule Type: Event Rule
+Enabled: Yes
+
+── Condición (AND) ──
+1. Custom Property "JA3 Hash" is contained in Reference Set "JA3_DualUse_Tools"
+   [curl, Python, Golang, Tor]
+
+2. AND destinationip is contained in Reference Set "Suspicious_IP_List"
+   [feeds de abuse.ch, Tor exit nodes, Shodan C2 IPs]
+
+3. AND sourceip is NOT in Reference Set "Authorized_Script_Servers"
+
+── Response ──
+Offense Magnitude: 6
+Note: "Herramienta dual-use contactando IP sospechosa — puede ser legítimo o malicioso"
+Analyst Action Required: Yes
+
+── Poblar Reference Sets (automatizable via API QRadar) ──
+# curl para actualizar desde abuse.ch:
+curl -s "https://sslbl.abuse.ch/blacklist/ja3_fingerprints.csv" \
+  | grep -v '#' | cut -d',' -f1 \
+  | while read hash; do
+      curl -X POST \
+        "https://QRADAR-IP/api/reference_data/sets/entries/JA3_Malicious_Feed" \
+        -H "SEC: YOUR_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{\"value\":\"$hash\"}"
+    done</code></pre>
+      </div>
+
+      <h2>Regla 4 — Beaconing TLS detectado</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">QRADAR RULE LOGIC</span>
+          <span class="code-block-desc">Regla de correlación temporal — patrón de beacon</span>
+        </div>
+        <pre><code>Rule Name: SOC-JA3-004 — Posible Beaconing TLS
+Rule Type: Event Rule (con grouping)
+Enabled: Yes
+
+── Condición ──
+when the event(s) were detected by the local system
+AND Custom Property "JA3 Hash" is not empty
+AND sourceip is part of $HOME_NET
+
+── Agrupación (Building Block) ──
+Group by: sourceip, destinationip, destinationport, "JA3 Hash"
+Time: 15 minutes
+Threshold: 10 or more matching events
+
+── Indicador de beaconing ──
+If the same (src, dst, ja3) tuple aparece 10+ veces en 15 minutos
+→ generar Offense: "Posible C2 Beaconing — [src] → [dst] JA3:[hash]"
+Magnitude: 7
+Requires Analyst Investigation</code></pre>
+      </div>
+
+    </div><!-- /#tab-rules -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 4 — DASHBOARDS Y VISUALIZACIÓN
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-dashboard">
+
+      <div class="section-intro">
+        <p><strong>Dashboards de QRadar</strong> para monitoreo continuo de huellas JA3.
+        Configurados en <strong>Dashboard → Add Item → Saved Searches</strong> usando las
+        AQL queries del módulo anterior.</p>
+      </div>
+
+      <h2>Widget 1 — JA3 de alto riesgo en las últimas 24h</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">AQL — DASHBOARD WIDGET</span>
+          <span class="code-block-desc">Saved Search para widget tipo gráfico de barras</span>
+        </div>
+        <pre><code>-- Dashboard: "TLS Threat Monitor"
+-- Tipo: Bar Chart — X: malware_family, Y: conexiones
+
+SELECT
+    CASE "JA3 Hash"
+        WHEN 'e7d705a3286e19ea42f587b344ee6865' THEN '🔴 Metasploit'
+        WHEN 'de350869b8c85de67a350c8d186f11e6' THEN '🔴 Cobalt Strike'
+        WHEN '8bab54f22de07d88e90f5e8e5edb5a69' THEN '🔴 Emotet'
+        WHEN 'b386946a5a44d1ddcc843bc75336dfce' THEN '🟡 Python requests'
+        WHEN '51c64c77e60f3980eea90869b68c58a8' THEN '🟡 Go TLS'
+        WHEN 'cd08e31494f9531f560d64c695473da9' THEN '🟡 curl'
+        ELSE '⚪ Otros'
+    END AS categoria,
+    COUNT(*) AS conexiones
+FROM events
+WHERE "JA3 Hash" IS NOT NULL
+GROUP BY "JA3 Hash"
+ORDER BY conexiones DESC
+LAST 24 HOURS</code></pre>
+      </div>
+
+      <h2>Widget 2 — Top 10 fuentes con JA3 inusual</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">AQL — DASHBOARD WIDGET</span>
+          <span class="code-block-desc">Tabla de IPs origen con huellas no baseline</span>
+        </div>
+        <pre><code">-- Tipo: Table Widget
+-- Muestra los hosts que más huellas JA3 no-baseline generan
+SELECT
+    sourceip,
+    COUNT(DISTINCT "JA3 Hash") AS hashes_unicos,
+    COUNT(*) AS total_eventos,
+    ARRAY_AGG(DISTINCT "JA3 SNI" LIMIT 3) AS destinos_sni
+FROM events
+WHERE
+    "JA3 Hash" IS NOT NULL
+    AND "JA3 Hash" NOT IN (
+        SELECT DISTINCT "JA3 Hash" FROM events LAST 30 DAYS
+        -- En QRadar 7.5+ usar Reference Sets para mejor performance
+    )
+GROUP BY sourceip
+ORDER BY hashes_unicos DESC
+LIMIT 10
+LAST 24 HOURS</code></pre>
+      </div>
+
+      <h2>Workflow de investigación de Offense JA3</h2>
+
+      <div class="soc-flow">
+
+        <div class="soc-step">
+          <div class="soc-step-icon">🚨</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Offense creado — JA3 malicioso detectado</div>
+            <p class="soc-step-desc">
+              Offense → Ver detalles. Revisar:
+              <strong>Source IP</strong> (¿qué host?),
+              <strong>Destination IP</strong> (¿C2 IP conocida?),
+              <strong>Event Count</strong> (¿único o repetido?),
+              <strong>Time Range</strong> (¿cuándo empezó?).
+              Asignar el Offense al analista correspondiente.
+            </p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">🔍</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Drill-down en Log Activity</div>
+            <p class="soc-step-desc">
+              Desde el Offense, hacer clic en "Contributing Events" para ver el detalle.
+              Filtrar por el hash JA3 en cuestión y expandir el evento para ver los campos completos:
+              SNI, IP destino, puerto, timestamp exacto, y el evento raw (Suricata/Zeek).
+            </p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">🌐</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Búsqueda de contexto adicional</div>
+            <p class="soc-step-desc">
+              Desde la IP origen: "Network Activity → Search" para ver todo el tráfico del host.
+              Desde la IP destino: X-Force Exchange para ver reputación.
+              Correlacionar con User Activity: ¿quién estaba logueado en ese host en ese momento?
+              (Integrar con AD via Wincollect o QRadar UBA si está disponible).
+            </p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">📋</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Documentar y cerrar o escalar</div>
+            <p class="soc-step-desc">
+              Offense Notes: documentar hallazgos, IPs involucradas, timeline, decisión tomada.
+              Si es verdadero positivo: Status = "Open", Severity = 9, escalar a IR.
+              Si es FP: Status = "Closed", Close Reason = "Non-Issue", agregar la IP a la whitelist
+              correspondiente para evitar ruido futuro.
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+    </div><!-- /#tab-dashboard -->
+
+
+    <!-- ── Footer ── -->
+    <hr>
+    <p style="font-size:0.85rem; color:var(--text-muted)">
+      Continuá el lab TLS:
+      <a href="ja3.html">JA3 Core</a> ·
+      <a href="wireshark.html">Wireshark</a> ·
+      <a href="snort.html">Snort</a> ·
+      <a href="fortigate.html">FortiGate</a> ·
+      <a href="../../teoria/05_tls.html">Teoría TLS</a>
+    </p>
+
+    <a href="../../index.html">← Volver al inicio</a>
+
+  </div>
+
+  <script src="../../assets/js/ja3-lab.js"></script>
+</body>
+</html>

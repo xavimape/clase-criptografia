@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JA3 Fingerprinting Lab — Cryptography for SOC Analysts</title>
+  <link rel="stylesheet" href="../../assets/css/style.css">
+  <link rel="stylesheet" href="../../assets/css/john-lab.css">
+  <link rel="stylesheet" href="../../assets/css/ja3-lab.css">
+</head>
+<body>
+
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <div class="container">
+
+    <a href="../index.html" class="section-back">← Laboratorios</a>
+
+    <!-- ── HERO ── -->
+    <header class="hero" style="text-align:left; margin-bottom:1.5rem">
+      <div class="hero-badge">🔬 Lab · TLS / JA3 Fingerprinting</div>
+      <h1>JA3 Fingerprinting Lab</h1>
+      <p>Laboratorio interactivo para entender cómo se generan las huellas TLS <strong>JA3</strong>,
+      cómo identificar clientes maliciosos y cómo integrar esta técnica en el flujo SOC.</p>
+    </header>
+
+    <!-- ── NAVEGACIÓN ENTRE PÁGINAS DEL LAB TLS ── -->
+    <!-- Permite moverte entre los 5 módulos del laboratorio TLS -->
+    <nav class="lab-subnav">
+      <span class="lab-subnav-label">TLS Lab →</span>
+      <a href="ja3.html"        class="lab-subnav-link active">🔑 JA3 Core</a>
+      <a href="wireshark.html"  class="lab-subnav-link">🦈 Wireshark</a>
+      <a href="snort.html"      class="lab-subnav-link">🐷 Snort</a>
+      <a href="qradar.html"     class="lab-subnav-link">📊 QRadar</a>
+      <a href="fortigate.html"  class="lab-subnav-link">🛡️ FortiGate</a>
+    </nav>
+
+    <!-- ── TAB NAVIGATION ── -->
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="anatomy">01 · Anatomía TLS</button>
+      <button class="tab-btn"        data-tab="calculator">02 · Calculadora JA3</button>
+      <button class="tab-btn"        data-tab="signatures">03 · Firmas Conocidas</button>
+      <button class="tab-btn"        data-tab="soc">04 · Respuesta SOC</button>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 1 — ANATOMÍA DEL TLS CLIENT HELLO
+         ¿Qué campos tiene un Client Hello y cuáles usa JA3?
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content active" id="tab-anatomy">
+
+      <div class="section-intro">
+        <p><strong>JA3</strong> (John Althouse, Jeff Atkinson, Josh Atkins — Salesforce, 2017) extrae
+        cinco campos del mensaje <code>TLS Client Hello</code> y calcula su hash MD5.
+        El resultado es una huella de 32 chars que identifica la implementación TLS del cliente —
+        independientemente de la IP o el dominio contactado.</p>
+      </div>
+
+      <!-- ── Diagrama del paquete TLS Client Hello ── -->
+      <!-- Visualiza los campos del paquete y cuáles captura JA3 -->
+      <h2>Estructura del TLS Client Hello</h2>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:0.5rem">
+        Hacé click en un campo resaltado en azul para ver su explicación detallada.</p>
+
+      <div class="tls-packet">
+        <div class="tls-packet-header">
+          <span class="terminal-dot red"></span>
+          <span class="terminal-dot amber"></span>
+          <span class="terminal-dot green"></span>
+          <span class="tls-packet-title">TLS Record — Handshake (Type 22)</span>
+          <span class="tls-packet-badge badge-client">CLIENT → SERVER</span>
+        </div>
+
+        <div class="tls-fields">
+
+          <!-- Campos de encabezado TLS/IP — JA3 no los usa directamente -->
+          <div class="tls-field">
+            <span class="tls-field-name">Record Type</span>
+            <span class="tls-field-value">0x16 (22)</span>
+            <span class="tls-field-note">Handshake</span>
+          </div>
+          <div class="tls-field">
+            <span class="tls-field-name">Record Version</span>
+            <span class="tls-field-value">0x0301 (TLS 1.0 legacy)</span>
+            <span class="tls-field-note">Compat.</span>
+          </div>
+          <div class="tls-field">
+            <span class="tls-field-name">Handshake Type</span>
+            <span class="tls-field-value">0x01 — Client Hello</span>
+            <span class="tls-field-note"></span>
+          </div>
+
+          <!-- Separador visual -->
+          <div style="border-top: 1px solid rgba(0,212,255,0.08); margin: 0.35rem 0;"></div>
+
+          <!-- ── CAMPOS QUE JA3 USA — resaltados y clickeables ── -->
+
+          <!-- Campo 1: SSLVersion -->
+          <div class="tls-field ja3-field" data-explain="version" style="cursor:pointer" title="Click para más info">
+            <span class="tls-field-name">Client Version</span>
+            <span class="tls-field-value">0x0303 → <strong>771</strong></span>
+            <span class="tls-field-note"><span class="ja3-tag">JA3 campo 1</span></span>
+          </div>
+
+          <div class="tls-field">
+            <span class="tls-field-name">Client Random</span>
+            <span class="tls-field-value">32 bytes (timestamp + random)</span>
+            <span class="tls-field-note">No usado</span>
+          </div>
+
+          <div class="tls-field">
+            <span class="tls-field-name">Session ID</span>
+            <span class="tls-field-value">0 bytes (nueva sesión)</span>
+            <span class="tls-field-note">No usado</span>
+          </div>
+
+          <!-- Campo 2: Cipher Suites -->
+          <div class="tls-field ja3-field" data-explain="ciphers" style="cursor:pointer" title="Click para más info">
+            <span class="tls-field-name">Cipher Suites</span>
+            <span class="tls-field-value">
+              <span class="grease-excluded">0xaaaa</span><span class="grease-tag">GREASE</span>,
+              4865, 4866, 4867, 49195, 49199, 52393…
+            </span>
+            <span class="tls-field-note"><span class="ja3-tag">JA3 campo 2</span></span>
+          </div>
+
+          <div class="tls-field">
+            <span class="tls-field-name">Compression Methods</span>
+            <span class="tls-field-value">0x00 (null — siempre)</span>
+            <span class="tls-field-note">No usado</span>
+          </div>
+
+          <!-- Extensiones -->
+          <div style="border-top: 1px solid rgba(0,212,255,0.08); margin: 0.35rem 0;
+                      font-family:var(--font-mono); font-size:0.62rem; color:var(--text-muted);
+                      padding-top:0.45rem">
+            EXTENSIONS
+          </div>
+
+          <!-- Campo 3: Extension types -->
+          <div class="tls-field ja3-field" data-explain="extensions" style="cursor:pointer" title="Click para más info">
+            <span class="tls-field-name">Extension Types</span>
+            <span class="tls-field-value">
+              0 (SNI), 23 (ETM), 65281 (RI), 10 (SG), 11 (EPF),
+              35 (SessionTicket), 16 (ALPN)…
+            </span>
+            <span class="tls-field-note"><span class="ja3-tag">JA3 campo 3</span></span>
+          </div>
+
+          <div class="tls-field">
+            <span class="tls-field-name">SNI (0x0000)</span>
+            <span class="tls-field-value">example.com</span>
+            <span class="tls-field-note">Contenido no usado</span>
+          </div>
+
+          <div class="tls-field">
+            <span class="tls-field-name">ALPN (0x0010)</span>
+            <span class="tls-field-value">h2, http/1.1</span>
+            <span class="tls-field-note">Contenido no usado</span>
+          </div>
+
+          <!-- Campo 4: Elliptic Curves / Supported Groups -->
+          <div class="tls-field ja3-field" data-explain="curves" style="cursor:pointer" title="Click para más info">
+            <span class="tls-field-name">Supported Groups</span>
+            <span class="tls-field-value">
+              <span class="grease-excluded">0xaaaa</span><span class="grease-tag">GREASE</span>,
+              29 (x25519), 23 (secp256r1), 24 (secp384r1)
+            </span>
+            <span class="tls-field-note"><span class="ja3-tag">JA3 campo 4</span></span>
+          </div>
+
+          <!-- Campo 5: EC Point Formats -->
+          <div class="tls-field ja3-field" data-explain="ecformats" style="cursor:pointer" title="Click para más info">
+            <span class="tls-field-name">EC Point Formats</span>
+            <span class="tls-field-value">0 (uncompressed)</span>
+            <span class="tls-field-note"><span class="ja3-tag">JA3 campo 5</span></span>
+          </div>
+
+        </div><!-- /.tls-fields -->
+      </div><!-- /.tls-packet -->
+
+      <!-- Panel de explicación al hacer click en un campo -->
+      <div class="hint-box" id="field-explain" style="display:none; font-size:0.82rem; color:var(--text); line-height:1.7">
+        <p>Hacé click en un campo azul para ver su explicación.</p>
+      </div>
+
+      <style>
+        /* Hack: mostrar field-explain al tener clase visible */
+        #field-explain.visible { display: block !important; }
+      </style>
+
+      <!-- ── Fórmula JA3 ── -->
+      <h2>Fórmula JA3</h2>
+
+      <p>JA3 construye un string con los 5 campos, separando los valores de cada lista con
+      <code>-</code> y los campos entre sí con <code>,</code>. Luego calcula el MD5 del resultado:</p>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">FÓRMULA</span>
+          <span class="code-block-desc">Concatenación de campos</span>
+        </div>
+        <pre><code>JA3_STRING = SSLVersion,Ciphers,Extensions,EllipticCurves,ECPointFormats
+
+Ejemplo (Chrome 96):
+  771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,\
+  0-23-65281-10-11-35-16-5-13-18-51-45-43-27-17513,\
+  29-23-24,\
+  0
+
+JA3_HASH = MD5(JA3_STRING)
+         = cd08e31494f9531f560d64c695473da9  ← huella final de 32 chars</code></pre>
+      </div>
+
+      <blockquote>
+        <strong>¿Por qué MD5?</strong> JA3 usa MD5 por velocidad de cálculo en línea de red —
+        no por seguridad criptográfica. Con ~10 mil millones de hashes/segundo en GPU, el análisis
+        en tiempo real de tráfico no introduce latencia notable.
+      </blockquote>
+
+      <!-- ── Valores GREASE ── -->
+      <h2>Valores GREASE — RFC 8701</h2>
+
+      <p>Los browsers modernos insertan valores GREASE (<em>Generate Random Extensions And Sustain
+      Extensibility</em>) para garantizar que los servidores ignoren valores TLS desconocidos. JA3
+      los filtra antes de concatenar para mantener huellas consistentes entre sesiones del mismo cliente.</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Valores GREASE (decimal)</th>
+            <th>Hex</th>
+            <th>¿Dónde aparece?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="font-family:var(--font-mono)">2570, 6682, 10794, 14906, 19018, 23130, 27242, 31354</td>
+              <td style="font-family:var(--font-mono); color:var(--text-muted)">0x0a0a…0x7a7a</td>
+              <td>Ciphers, Extensions, Curves</td></tr>
+          <tr><td style="font-family:var(--font-mono)">35466, 39578, 43690, 47802, 51914, 56026, 60138, 64250</td>
+              <td style="font-family:var(--font-mono); color:var(--text-muted)">0x8a8a…0xfafa</td>
+              <td>Ciphers, Extensions, Curves</td></tr>
+        </tbody>
+      </table>
+
+    </div><!-- /#tab-anatomy -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 2 — CALCULADORA JA3 INTERACTIVA
+         Cálculo paso a paso del hash en el browser
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-calculator">
+
+      <div class="section-intro">
+        <p><strong>Calculadora JA3.</strong> Seleccioná un cliente preset o ingresá manualmente los campos
+        del Client Hello para ver el proceso completo: extracción → filtro GREASE → concatenación → MD5.</p>
+      </div>
+
+      <!-- ── Selector de presets ── -->
+      <div class="input-panel">
+        <div class="input-label" style="margin-bottom:0.7rem">Preset de cliente TLS</div>
+        <div class="preset-row">
+          <button class="calc-preset-btn preset-btn" data-preset="chrome">🌐 Chrome 96</button>
+          <button class="calc-preset-btn preset-btn" data-preset="firefox">🦊 Firefox 95</button>
+          <button class="calc-preset-btn preset-btn" data-preset="curl">⌨️ curl 7.x</button>
+          <button class="calc-preset-btn preset-btn" data-preset="metasploit">⚠️ Metasploit</button>
+          <button class="calc-preset-btn preset-btn" data-preset="cobaltstrike">⚠️ Cobalt Strike</button>
+        </div>
+        <p class="field-info" id="preset-description" style="display:none; margin-top:0.55rem">—</p>
+        <style>#preset-description.visible { display:block !important; }</style>
+      </div>
+
+      <!-- ── Inputs de campos JA3 ── -->
+      <div class="input-panel">
+        <div class="ja3-input-grid">
+          <div class="input-group">
+            <label class="input-label" for="calc-version">SSLVersion (campo 1)</label>
+            <input type="number" id="calc-version" class="input-field"
+              placeholder="ej: 771" min="769" max="772" value="771">
+            <p class="field-info">769=TLS1.0 · 770=TLS1.1 · 771=TLS1.2 · 772=TLS1.3</p>
+          </div>
+          <div class="input-group">
+            <label class="input-label" for="calc-ecformats">ECPointFormats (campo 5)</label>
+            <input type="text" id="calc-ecformats" class="input-field"
+              placeholder="ej: 0" spellcheck="false" value="0">
+            <p class="field-info">Casi siempre <code>0</code> (uncompressed)</p>
+          </div>
+          <div class="input-group ja3-input-full">
+            <label class="input-label" for="calc-ciphers">Cipher Suites (campo 2) — valores decimales separados por comas</label>
+            <input type="text" id="calc-ciphers" class="input-field"
+              placeholder="ej: 4865,4866,49195,49199,47,53"
+              spellcheck="false" autocomplete="off">
+            <p class="field-info">Incluí valores GREASE (ej: 2570, 6682…) — el motor los filtrará automáticamente</p>
+          </div>
+          <div class="input-group ja3-input-full">
+            <label class="input-label" for="calc-extensions">Extension Types (campo 3)</label>
+            <input type="text" id="calc-extensions" class="input-field"
+              placeholder="ej: 0,23,65281,10,11,35,16,5,13,18"
+              spellcheck="false" autocomplete="off">
+          </div>
+          <div class="input-group ja3-input-full">
+            <label class="input-label" for="calc-curves">Supported Groups / Elliptic Curves (campo 4)</label>
+            <input type="text" id="calc-curves" class="input-field"
+              placeholder="ej: 29,23,24" spellcheck="false" autocomplete="off">
+            <p class="field-info">29=x25519 · 23=secp256r1 · 24=secp384r1 · 25=secp521r1</p>
+          </div>
+        </div>
+        <div class="input-row">
+          <button id="calc-run-btn"   class="btn-primary">▶ Calcular JA3</button>
+          <button id="calc-clear-btn" class="btn-secondary">✕ Limpiar</button>
+        </div>
+      </div>
+
+      <!-- ── Pasos de cálculo ── -->
+      <!-- Cada paso se activa animado cuando el usuario presiona "Calcular" -->
+      <h2>Proceso de cálculo paso a paso</h2>
+
+      <div class="ja3-steps">
+
+        <!-- Paso 1: Extracción de campos -->
+        <div class="ja3-step" id="ja3-step-1">
+          <div class="ja3-step-num">1</div>
+          <div class="ja3-step-body">
+            <div class="ja3-step-title">Extracción de campos del Client Hello</div>
+            <pre class="ja3-step-output" id="step-extract">—</pre>
+          </div>
+        </div>
+
+        <!-- Paso 2: Filtrado de GREASE -->
+        <div class="ja3-step" id="ja3-step-2">
+          <div class="ja3-step-num">2</div>
+          <div class="ja3-step-body">
+            <div class="ja3-step-title">Filtrado de valores GREASE (RFC 8701)</div>
+            <pre class="ja3-step-output" id="step-grease">—</pre>
+          </div>
+        </div>
+
+        <!-- Paso 3: Concatenación JA3 -->
+        <div class="ja3-step" id="ja3-step-3">
+          <div class="ja3-step-num">3</div>
+          <div class="ja3-step-body">
+            <div class="ja3-step-title">Concatenación JA3 — Version,Ciphers,Extensions,Curves,ECFormats</div>
+            <pre class="ja3-step-output" id="step-concat">—</pre>
+          </div>
+        </div>
+
+        <!-- Paso 4: Hash MD5 -->
+        <div class="ja3-step" id="ja3-step-4">
+          <div class="ja3-step-num">4</div>
+          <div class="ja3-step-body">
+            <div class="ja3-step-title">Hash MD5 del string JA3 → huella final</div>
+            <pre class="ja3-step-output" id="step-hash">—</pre>
+          </div>
+        </div>
+
+      </div><!-- /.ja3-steps -->
+
+      <!-- ── Resultado final destacado ── -->
+      <div class="ja3-hash-display">
+        <div class="ja3-hash-label">HUELLA JA3</div>
+        <div class="ja3-hash-value" id="ja3-result">—</div>
+      </div>
+
+      <!-- ── Indicador de amenaza ── -->
+      <div class="threat-indicator" id="calc-threat"></div>
+
+      <blockquote>
+        <strong>Insight SOC:</strong> El mismo hash JA3 aparece independientemente del dominio contactado.
+        Un <code>Metasploit Meterpreter</code> contactando google.com o evil.onion produce la <em>misma</em>
+        huella. Esto hace que JA3 sea efectivo para detección en escenarios de DGA o fast-flux.
+      </blockquote>
+
+    </div><!-- /#tab-calculator -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 3 — BASE DE FIRMAS JA3 CONOCIDAS
+         Threat intelligence de hashes JA3 documentados
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-signatures">
+
+      <div class="section-intro">
+        <p><strong>Base de firmas JA3.</strong> Hashes documentados en threat intel público.
+        Buscá un hash para verificar si aparece en la base, o filtrá por categoría.
+        <strong>Importante:</strong> los hashes varían con versiones de software — la ausencia no implica benignidad.</p>
+      </div>
+
+      <!-- ── Lookup rápido ── -->
+      <div class="input-panel">
+        <div class="input-row">
+          <div class="input-group">
+            <label class="input-label" for="sig-lookup-input">Buscar hash JA3 (32 chars hex)</label>
+            <input type="text" id="sig-lookup-input" class="input-field"
+              placeholder="ej: e7d705a3286e19ea42f587b344ee6865"
+              spellcheck="false" maxlength="32" autocomplete="off">
+          </div>
+          <button id="sig-lookup-btn" class="btn-primary">🔍 Buscar</button>
+        </div>
+        <div class="lookup-result" id="lookup-result"></div>
+      </div>
+
+      <!-- ── Filtros por categoría ── -->
+      <div class="preset-row" style="margin-bottom:1rem">
+        <span style="font-family:var(--font-mono); font-size:0.62rem; color:var(--text-muted)">Filtrar →</span>
+        <button class="sig-filter-btn preset-btn active" data-filter="all">Todos</button>
+        <button class="sig-filter-btn preset-btn" data-filter="malware">⚠ Malware/C2</button>
+        <button class="sig-filter-btn preset-btn" data-filter="tool">🔧 Herramientas</button>
+        <button class="sig-filter-btn preset-btn" data-filter="benign">✓ Legítimos</button>
+      </div>
+
+      <!-- Contenedor de cards — generado por ja3-lab.js -->
+      <div id="sig-container" class="sig-grid"></div>
+
+      <blockquote>
+        <strong>Fuentes de threat intel JA3:</strong>
+        <code>ja3er.com</code> (base colectiva) ·
+        <code>sslbl.abuse.ch/ja3-fingerprints</code> (SSL Blacklist) ·
+        <code>talosintelligence.com</code> ·
+        <code>github.com/salesforce/ja3</code> (repo original con feeds).
+        En entornos corporativos: integrá estos feeds en tu SIEM como listas de referencia.
+      </blockquote>
+
+    </div><!-- /#tab-signatures -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 4 — RESPUESTA SOC
+         Flujo de detección, investigación y mitigación
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-soc">
+
+      <div class="section-intro">
+        <p><strong>Flujo SOC con JA3.</strong> Desde la alerta inicial hasta el cierre del incidente.
+        Los pasos asumen que ya tenés visibilidad TLS (proxy, IDS, EDR o tap de red con exportación a SIEM).</p>
+      </div>
+
+      <!-- ── Flujo de detección ── -->
+      <h2>Flujo de detección y respuesta</h2>
+
+      <div class="soc-flow">
+
+        <div class="soc-step">
+          <div class="soc-step-icon">1</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">🔔 Alerta SIEM / IDS — hash JA3 sospechoso</div>
+            <p class="soc-step-desc">El SIEM correlaciona un hash JA3 contra la lista de firmas conocidas.
+            Puede ser una regla Snort, una alerta de QRadar o un indicador de FortiGate.
+            La alerta incluye: <code>src_ip</code>, <code>dst_ip</code>, <code>dst_port</code>,
+            <code>ja3_hash</code>, <code>timestamp</code>.</p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">2</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">🔍 Enriquecimiento del indicador</div>
+            <p class="soc-step-desc">Verificar el hash en feeds externos: <code>sslbl.abuse.ch</code>,
+            <code>ja3er.com</code>, VirusTotal (Network tab). Correlacionar con el historial del host origen:
+            ¿es un servidor, una estación de trabajo, un dispositivo IoT? ¿Cuándo fue la primera vez que viste este JA3 en tu red?</p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">3</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">📦 Captura de evidencia</div>
+            <p class="soc-step-desc">Si confirmás que es malicioso: capturar el PCAP completo del flujo,
+            exportar logs del SIEM del host afectado (<code>Event IDs 3, 7045, 4688</code> en Windows),
+            tomar snapshot de memoria si el host está activo. El PCAP puede revelar el payload C2.</p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">4</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">🔗 Análisis de pivote</div>
+            <p class="soc-step-desc">Buscar el mismo JA3 hash en <em>toda</em> la red: ¿hay otros hosts
+            con la misma huella contactando el mismo C2? El mismo JA3 en múltiples fuentes sugiere
+            infección masiva o movimiento lateral. Buscar también por <code>dst_ip</code> y
+            <code>certificate_hash</code>.</p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">5</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">🛑 Contención y bloqueo</div>
+            <p class="soc-step-desc">Bloquear la IP/dominio de destino en el firewall y proxy.
+            Si el malware usa DGA, el bloqueo por IP es insuficiente — evaluar aislamiento del host.
+            Agregar el JA3 hash a la lista de bloqueo en Snort/Suricata, QRadar y FortiGate.</p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">6</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">📝 Documentación y lecciones aprendidas</div>
+            <p class="soc-step-desc">Actualizar el playbook con el nuevo JA3. Agregar el hash a la
+            watchlist del SIEM. Reportar el indicador a plataformas de threat intel compartido
+            (MISP, ISACs). Evaluar si la detección fue oportuna o tardía y ajustar el umbral de alerta.</p>
+          </div>
+        </div>
+
+      </div><!-- /.soc-flow -->
+
+      <!-- ── Herramientas del ecosistema SOC ── -->
+      <h2>Herramientas del ecosistema SOC para JA3</h2>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:0.25rem">
+        Cada herramienta tiene su propio laboratorio con configuración detallada:</p>
+
+      <div class="tool-cards">
+        <a href="wireshark.html" class="tool-card">
+          <div class="tool-card-icon">🦈</div>
+          <div class="tool-card-name">Wireshark</div>
+          <p class="tool-card-desc">Análisis de PCAPs, filtros de display TLS, disección de Client Hello y extracción manual de campos JA3.</p>
+        </a>
+        <a href="snort.html" class="tool-card">
+          <div class="tool-card-icon">🐷</div>
+          <div class="tool-card-name">Snort / Suricata</div>
+          <p class="tool-card-desc">Reglas de detección en tiempo real. Alertas por hash JA3 conocido y patrones de cipher suites anómalos.</p>
+        </a>
+        <a href="qradar.html" class="tool-card">
+          <div class="tool-card-icon">📊</div>
+          <div class="tool-card-name">IBM QRadar</div>
+          <p class="tool-card-desc">Custom Properties para extraer JA3, AQL queries de correlación y offenses automáticos por amenaza.</p>
+        </a>
+        <a href="fortigate.html" class="tool-card">
+          <div class="tool-card-icon">🛡️</div>
+          <div class="tool-card-name">FortiGate / FortiAnalyzer</div>
+          <p class="tool-card-desc">SSL/TLS inspection, JA3 logging nativo en FortiOS 6.4+, queries en FortiAnalyzer para correlación.</p>
+        </a>
+      </div>
+
+      <!-- ── Tabla de referencia rápida ── -->
+      <h2>Referencia rápida — JA3 en incidentes</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Indicador</th>
+            <th>Qué puede significar</th>
+            <th>Acción SOC</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>JA3 desconocido de servidor crítico</td>
+            <td>Aplicación nueva, herramienta de sysadmin, backdoor</td>
+            <td style="color:#ffcc00">Investigar origen del proceso</td>
+          </tr>
+          <tr>
+            <td>JA3 = Metasploit / CS en workstation</td>
+            <td>Compromiso activo, pentest no autorizado</td>
+            <td style="color:#ff2d55; font-weight:600">Aislar host INMEDIATAMENTE</td>
+          </tr>
+          <tr>
+            <td>JA3 = curl/Python en producción</td>
+            <td>Script legítimo, exfiltración, scraping</td>
+            <td style="color:#ffcc00">Verificar proceso y destino</td>
+          </tr>
+          <tr>
+            <td>Mismo JA3 inusual en 10+ hosts</td>
+            <td>Malware masivo, script de IT, policy push</td>
+            <td style="color:#ff2d55; font-weight:600">Correlacionar y escalar</td>
+          </tr>
+          <tr>
+            <td>JA3 rotando cada X minutos</td>
+            <td>C2 con malleable profile, evasión activa</td>
+            <td style="color:#ff2d55; font-weight:600">Usar JA3S (server side) también</td>
+          </tr>
+          <tr>
+            <td>JA3 conocido-legítimo → IP sospechosa</td>
+            <td>Infected binary, proxy transparente, MITM</td>
+            <td style="color:#ffcc00">Investigar certificado y destino</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </div><!-- /#tab-soc -->
+
+
+    <!-- ── Footer ── -->
+    <hr>
+    <p style="font-size:0.85rem; color:var(--text-muted)">
+      Continuá el lab TLS:
+      <a href="wireshark.html">Wireshark</a> ·
+      <a href="snort.html">Snort</a> ·
+      <a href="qradar.html">QRadar</a> ·
+      <a href="fortigate.html">FortiGate</a> ·
+      <a href="../../teoria/05_tls.html">Teoría TLS</a>
+    </p>
+
+    <a href="../../index.html">← Volver al inicio</a>
+
+  </div><!-- /.container -->
+
+  <script src="../../assets/js/ja3-lab.js"></script>
+</body>
+</html>
