@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zeek TLS Lab — Cryptography for SOC Analysts</title>
+  <link rel="stylesheet" href="../../assets/css/style.css">
+  <link rel="stylesheet" href="../../assets/css/john-lab.css">
+  <link rel="stylesheet" href="../../assets/css/ja3-lab.css">
+  <style>
+    /* ── Clases específicas de zeek.html ──────────────────────── */
+
+    /* Caja de insight SOC — destacado informativo */
+    .soc-insight {
+      background: rgba(0, 212, 255, 0.04);
+      border: 1px solid rgba(0, 212, 255, 0.22);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 0.85rem 1.1rem;
+      margin: 1.25rem 0;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.65;
+      position: relative;
+    }
+
+    .soc-insight::before {
+      content: '💡 SOC Insight';
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 0.58rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--accent);
+      margin-bottom: 0.45rem;
+    }
+
+    .soc-insight p {
+      margin: 0;
+    }
+
+    /* Caja de advertencia / warning */
+    .warning-box {
+      background: rgba(255, 204, 0, 0.05);
+      border: 1px solid rgba(255, 204, 0, 0.25);
+      border-left: 3px solid #ffcc00;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 0.85rem 1.1rem;
+      margin: 1.25rem 0;
+      font-size: 0.82rem;
+      color: rgba(220, 180, 0, 0.9);
+      line-height: 1.65;
+    }
+
+    .warning-box::before {
+      content: '⚠ Nota';
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 0.58rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: #ffcc00;
+      margin-bottom: 0.45rem;
+    }
+
+    /* Diagrama de arquitectura Zeek */
+    .zeek-arch {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin: 1.25rem 0;
+      padding: 1rem 1.25rem;
+      background: #060a10;
+      border: 1px solid rgba(0, 212, 255, 0.15);
+      border-radius: var(--radius);
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+    }
+
+    .zeek-arch-node {
+      background: rgba(0, 212, 255, 0.07);
+      border: 1px solid rgba(0, 212, 255, 0.25);
+      border-radius: 0.35rem;
+      padding: 0.45rem 0.85rem;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    .zeek-arch-arrow {
+      color: var(--text-muted);
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+
+    .zeek-arch-logs {
+      background: rgba(57, 255, 20, 0.05);
+      border: 1px solid rgba(57, 255, 20, 0.2);
+      border-radius: 0.35rem;
+      padding: 0.45rem 0.85rem;
+      color: #39ff14;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <div class="container">
+
+    <a href="../index.html" class="section-back">← Laboratorios</a>
+
+    <header class="hero" style="text-align:left; margin-bottom:1.5rem">
+      <div class="hero-badge">Lab TLS · Zeek</div>
+      <h1>Análisis TLS con Zeek</h1>
+      <p>Zeek genera logs estructurados del tráfico de red — incluyendo ssl.log con fingerprints JA3/JA3S.
+      Aprenderás a huntar amenazas TLS usando Zeek en un entorno SOC real.</p>
+    </header>
+
+    <!-- ── Sub-navegación del lab TLS ── -->
+    <nav class="lab-subnav" aria-label="TLS Lab — secciones">
+      <a href="ja3.html"       class="lab-subnav-link">🔐 JA3 Core</a>
+      <a href="wireshark.html" class="lab-subnav-link">🦈 Wireshark</a>
+      <a href="snort.html"     class="lab-subnav-link">🐷 Snort/Suricata</a>
+      <a href="qradar.html"    class="lab-subnav-link">📊 QRadar</a>
+      <a href="fortigate.html" class="lab-subnav-link">🛡️ FortiGate</a>
+      <a href="zeek.html"      class="lab-subnav-link active">🦎 Zeek</a>
+    </nav>
+
+    <!-- ── Tab Navigation ── -->
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="intro">01 · Introducción</button>
+      <button class="tab-btn"        data-tab="logs">02 · ssl.log / ja3.log</button>
+      <button class="tab-btn"        data-tab="hunting">03 · Hunting</button>
+      <button class="tab-btn"        data-tab="workflow">04 · SOC Workflow</button>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 1 — INTRODUCCIÓN
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content active" id="tab-intro">
+
+      <div class="section-intro">
+        <p><strong>Zeek</strong> (antes Bro) es un framework de análisis de tráfico de red pasivo.
+        No bloquea tráfico, lo analiza y genera logs estructurados. Es el estándar en análisis
+        forense de red en SOC.</p>
+      </div>
+
+      <h2>Arquitectura simplificada</h2>
+
+      <div class="zeek-arch">
+        <div class="zeek-arch-node">Captura de paquetes</div>
+        <div class="zeek-arch-arrow">→</div>
+        <div class="zeek-arch-node">Zeek Engine</div>
+        <div class="zeek-arch-arrow">→</div>
+        <div class="zeek-arch-node">Analyzers</div>
+        <div class="zeek-arch-arrow">→</div>
+        <div class="zeek-arch-logs">ssl.log · conn.log · dns.log · http.log…</div>
+      </div>
+
+      <h2>¿Por qué Zeek para TLS/JA3?</h2>
+
+      <ul>
+        <li>Genera <code>ssl.log</code> automáticamente con campos TLS completos: cipher, version, ja3, ja3s, SNI</li>
+        <li>No requiere instrumentación adicional — funciona sobre tráfico existente (tap o SPAN port)</li>
+        <li>Ideal para análisis forense post-incident y hunting proactivo</li>
+        <li>Zeek 5.x+ incluye JA3/JA3S de forma nativa en <code>ssl.log</code></li>
+      </ul>
+
+      <h2>Comparación rápida</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Herramienta</th>
+            <th>Tipo</th>
+            <th>JA3 nativo</th>
+            <th>Uso principal</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Zeek</td>
+            <td>NSM pasivo</td>
+            <td>✅ ssl.log</td>
+            <td>Forensics, hunting</td>
+          </tr>
+          <tr>
+            <td>Wireshark</td>
+            <td>Packet capture</td>
+            <td>✅ campo nativo</td>
+            <td>Análisis interactivo</td>
+          </tr>
+          <tr>
+            <td>Snort/Suricata</td>
+            <td>IDS/IPS activo</td>
+            <td>✅ ja3.hash</td>
+            <td>Alertas en tiempo real</td>
+          </tr>
+          <tr>
+            <td>tshark</td>
+            <td>CLI packet</td>
+            <td>✅ extracción</td>
+            <td>Scripting, automation</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Instalación (referencia)</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">BASH</span>
+          <span class="code-block-desc">Zeek 5.x en Ubuntu/Debian</span>
+        </div>
+        <pre><code># Zeek 5.x en Ubuntu/Debian
+sudo apt-get install zeek
+
+# Agregar JA3 plugin (Zeek &lt; 5.0)
+zkg install zeek/salesforce/ja3
+
+# Zeek 5.0+ incluye JA3 nativo
+# Verificar versión instalada
+zeek --version</code></pre>
+      </div>
+
+      <div class="soc-insight">
+        <p>"En un SOC maduro, Zeek corre sobre un tap de red o SPAN port, ingiriendo todo el tráfico.
+        Los logs se envían a un SIEM (QRadar, Splunk, Elastic) para correlación. El ssl.log es gold
+        para análisis TLS."</p>
+      </div>
+
+    </div><!-- /#tab-intro -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 2 — ssl.log y ja3.log
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-logs">
+
+      <div class="section-intro">
+        <p><strong>ssl.log</strong> es el log principal de Zeek para análisis TLS. Cada entrada
+        representa una sesión TLS completa con todos sus metadatos, incluyendo los fingerprints
+        JA3 y JA3S.</p>
+      </div>
+
+      <h2>Formato ssl.log de Zeek</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">ZEEK LOG FORMAT</span>
+          <span class="code-block-desc">Header del ssl.log — campos y tipos</span>
+        </div>
+        <pre><code>#fields ts  uid  id.orig_h  id.orig_p  id.resp_h  id.resp_p  version  cipher  curve  server_name  resumed  established  cert_chain_fuids  client_cert_chain_fuids  subject  issuer  ja3  ja3s
+#types  time  string  addr  port  addr  port  string  string  string  string  bool  bool  vector[string]  vector[string]  string  string  string  string</code></pre>
+      </div>
+
+      <h2>Ejemplos de entradas reales</h2>
+
+      <div class="terminal-wrapper">
+        <div class="terminal-body">
+          <span class="terminal-line t-info"># [1] Benign — Chrome → google.com</span>
+          <span class="terminal-line t-info">1684123456.123  CmX1a2AbCd  192.168.1.50  54321  172.217.14.196  443  TLSv12  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256  x25519  google.com  F  T  -  -  CN=*.google.com  CN=GTS CA 1C3  ada70206e40642a3e4461f35503241d5  ec4dabb7b...</span>
+          <span class="terminal-line"> </span>
+          <span class="terminal-line t-warn"># [2] Suspicious — Puerto no estándar + cert autofirmado + sin SNI (JA3 = Cobalt Strike conocido)</span>
+          <span class="terminal-line t-warn">1684123789.456  CxY3b4DefG  10.0.0.142   45678  185.220.101.47  4443  TLSv12  TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA  secp256r1  -  F  T  -  -  CN=evil.example  CN=evil.example  de350869b8c85de67a350c8d186f11e6  ae4edc6f...</span>
+          <span class="terminal-line"> </span>
+          <span class="terminal-line t-error"># [3] C2 Beacon — 300 segundos exactos después de [2] → patrón de beacon</span>
+          <span class="terminal-line t-error">1684124089.456  ChZ5c6GhiJ  10.0.0.142   45679  185.220.101.47  4443  TLSv12  TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA  secp256r1  -  T  T  -  -  CN=evil.example  CN=evil.example  de350869b8c85de67a350c8d186f11e6  ae4edc6f...</span>
+          <span class="terminal-line"> </span>
+          <span class="terminal-line t-info"># [4] Normal interno — API corporativa</span>
+          <span class="terminal-line t-info">1684124156.789  CkA7d8IjkL  10.0.0.15   52101  10.0.1.5  8443  TLSv12  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256  x25519  api.internal.corp  F  T  -  -  CN=api.internal.corp  CN=InternalCA  3b5074b1d...  -</span>
+        </div>
+      </div>
+
+      <h2>Campos clave del ssl.log</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Campo</th>
+            <th>Descripción</th>
+            <th>Relevancia SOC</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>ts</code></td>
+            <td>Timestamp Unix</td>
+            <td>Cronología de ataque</td>
+          </tr>
+          <tr>
+            <td><code>uid</code></td>
+            <td>Connection ID único</td>
+            <td>Pivot entre logs</td>
+          </tr>
+          <tr>
+            <td><code>id.orig_h / id.resp_h</code></td>
+            <td>IPs origen/destino</td>
+            <td>Identificación de endpoints</td>
+          </tr>
+          <tr>
+            <td><code>version</code></td>
+            <td>Versión TLS</td>
+            <td>TLS 1.0/1.1 = red flag</td>
+          </tr>
+          <tr>
+            <td><code>cipher</code></td>
+            <td>Cipher negociado</td>
+            <td>Ciphers débiles = riesgo</td>
+          </tr>
+          <tr>
+            <td><code>server_name</code></td>
+            <td>SNI del cliente</td>
+            <td>Infraestructura C2 sin SNI = sospechoso</td>
+          </tr>
+          <tr>
+            <td><code>ja3</code></td>
+            <td>Fingerprint cliente</td>
+            <td>Tool/malware identification</td>
+          </tr>
+          <tr>
+            <td><code>ja3s</code></td>
+            <td>Fingerprint servidor</td>
+            <td>C2 infrastructure fingerprint</td>
+          </tr>
+          <tr>
+            <td><code>resumed</code></td>
+            <td>Sesión reanudada</td>
+            <td>Beaconing pattern</td>
+          </tr>
+          <tr>
+            <td><code>established</code></td>
+            <td>Handshake completo</td>
+            <td>Conexión exitosa</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Comandos Zeek para captura</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">BASH</span>
+          <span class="code-block-desc">Captura en vivo y análisis de PCAP</span>
+        </div>
+        <pre><code># Captura en vivo
+zeek -i eth0 local.zeek
+
+# Análisis de PCAP (con JA3 habilitado en versiones anteriores a 5.0)
+zeek -r traffic.pcap /opt/zeek/share/zeek/site/ja3/ja3.zeek
+
+# Ver ssl.log en tiempo real
+tail -f /opt/zeek/logs/current/ssl.log | zeek-cut ts id.orig_h id.resp_h ja3 server_name
+
+# Habilitar JA3 en site/local.zeek (Zeek &lt; 5.0)
+echo '@load protocols/ssl/ja3' &gt;&gt; /opt/zeek/share/zeek/site/local.zeek</code></pre>
+      </div>
+
+      <h2>Formato ja3.log (versiones antiguas de Zeek)</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">ZEEK LOG FORMAT</span>
+          <span class="code-block-desc">ja3.log — presente en Zeek anterior a 5.x</span>
+        </div>
+        <pre><code>#fields ts  uid  id.orig_h  id.orig_p  id.resp_h  id.resp_p  ja3  ja3s</code></pre>
+      </div>
+
+      <div class="warning-box">
+        En Zeek 5.x+ los campos <code>ja3</code> y <code>ja3s</code> están integrados directamente
+        en <code>ssl.log</code>. El archivo separado <code>ja3.log</code> solo aparece en instalaciones
+        antiguas con el plugin de Salesforce cargado manualmente.
+      </div>
+
+    </div><!-- /#tab-logs -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 3 — HUNTING
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-hunting">
+
+      <div class="section-intro">
+        <p><strong>zeek-cut</strong> es la navaja suiza para analizar logs de Zeek desde CLI.
+        Permite extraer columnas específicas del formato TSV de Zeek de manera eficiente,
+        similar a <code>awk</code> pero con conocimiento nativo del formato de logs.</p>
+      </div>
+
+      <h2>Query 1 — Top JA3 en la red</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">BASH · zeek-cut</span>
+          <span class="code-block-desc">Top 20 fingerprints más frecuentes</span>
+        </div>
+        <pre><code># Top 20 fingerprints más frecuentes
+cat ssl.log | zeek-cut ja3 | sort | uniq -c | sort -rn | head 20
+
+# Resultado esperado:
+#  4821 ada70206e40642a3e4461f35503241d5   ← Chrome (normal)
+#   234 3b5074b1d2a3c4e5f6a7b8c9d0e1f2a3   ← Firefox (normal)
+#    47 de350869b8c85de67a350c8d186f11e6   ← ⚠️ Cobalt Strike
+#     8 e7d705a3286e19ea42f587b344ee6865   ← ⚠️ Metasploit</code></pre>
+      </div>
+
+      <h2>Query 2 — Buscar JA3 malicioso conocido</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">BASH · zeek-cut</span>
+          <span class="code-block-desc">Búsqueda puntual y búsqueda por lista</span>
+        </div>
+        <pre><code># Buscar Cobalt Strike JA3
+cat ssl.log | zeek-cut ts uid id.orig_h id.resp_h id.resp_p ja3 server_name | \
+  grep "de350869b8c85de67a350c8d186f11e6"
+
+# Buscar cualquier JA3 de una lista (bash)
+MALICIOUS_JA3=(
+  "de350869b8c85de67a350c8d186f11e6"  # Cobalt Strike
+  "e7d705a3286e19ea42f587b344ee6865"  # Metasploit
+  "8bab54f22de07d88e90f5e8e5edb5a69"  # Emotet
+)
+for ja3 in "${MALICIOUS_JA3[@]}"; do
+  echo "=== Buscando: $ja3 ==="
+  grep "$ja3" ssl.log | zeek-cut ts id.orig_h id.resp_h server_name
+done</code></pre>
+      </div>
+
+      <h2>Query 3 — Correlación JA3 + JA3S (par C2)</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">BASH · zeek-cut</span>
+          <span class="code-block-desc">Pares únicos cliente+servidor para fingerprint completo de sesión</span>
+        </div>
+        <pre><code># Encontrar pares JA3+JA3S únicos
+cat ssl.log | zeek-cut id.orig_h id.resp_h ja3 ja3s | \
+  awk '{if($3!="" && $4!="") print $3"---"$4}' | \
+  sort | uniq -c | sort -rn
+
+# Pivot: buscar todos los clientes que contactaron mismo JA3S (misma infraestructura C2)
+cat ssl.log | zeek-cut id.orig_h id.resp_h ja3s | \
+  awk '/ae4edc6f/ {print $1, $2}' | sort -u</code></pre>
+      </div>
+
+      <h2>Query 4 — Detección de Beaconing</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">BASH + PYTHON</span>
+          <span class="code-block-desc">Calcular intervalos y detectar C2 automatizado</span>
+        </div>
+        <pre><code># Paso 1 — Extraer y ordenar por host+destino
+cat ssl.log | zeek-cut ts id.orig_h id.resp_h ja3 | \
+  awk 'BEGIN{OFS="\t"}{print $1,$2,$3,$4}' | \
+  sort -k2,3 &gt; /tmp/sorted_ssl.txt
+
+# Paso 2 — Python helper para detectar beaconing
+python3 &lt;&lt; 'EOF'
+import sys
+from collections import defaultdict
+
+connections = defaultdict(list)
+with open('/tmp/sorted_ssl.txt') as f:
+    for line in f:
+        ts, src, dst, ja3 = line.strip().split('\t')
+        connections[(src, dst, ja3)].append(float(ts))
+
+for key, timestamps in connections.items():
+    if len(timestamps) &lt; 5:
+        continue
+    timestamps.sort()
+    intervals = [timestamps[i+1]-timestamps[i] for i in range(len(timestamps)-1)]
+    avg = sum(intervals)/len(intervals)
+    variance = sum((x-avg)**2 for x in intervals)/len(intervals)
+    # Beacon si intervalo regular (variance baja) y promedio ~5min
+    if variance &lt; 1000 and 240 &lt; avg &lt; 360:
+        src, dst, ja3 = key
+        print(f"⚠️  BEACON DETECTADO: {src} → {dst} | JA3: {ja3} | Intervalo: {avg:.0f}s")
+EOF</code></pre>
+      </div>
+
+      <h2>Query 5 — Anomalías TLS</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">BASH · zeek-cut</span>
+          <span class="code-block-desc">Puertos inusuales, sin SNI, versiones obsoletas</span>
+        </div>
+        <pre><code># Conexiones TLS en puertos no estándar
+cat ssl.log | zeek-cut id.orig_h id.resp_h id.resp_p ja3 server_name | \
+  awk '$3 != 443 && $3 != 8443 && $3 != 993 && $3 != 465'
+
+# Sin SNI (posible C2 directo por IP)
+cat ssl.log | zeek-cut ts id.orig_h id.resp_h server_name ja3 | \
+  awk '$4 == "-"' | head 20
+
+# TLS versiones obsoletas
+cat ssl.log | zeek-cut id.orig_h id.resp_h version | \
+  grep -E 'TLSv10|TLSv11|SSLv'</code></pre>
+      </div>
+
+      <h2>Script Zeek de alerta automática</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">ZEEK SCRIPT</span>
+          <span class="code-block-desc">/opt/zeek/site/ja3_alert.zeek — detección nativa</span>
+        </div>
+        <pre><code># /opt/zeek/site/ja3_alert.zeek
+# Cargarlo con: zeek -i eth0 ja3_alert.zeek
+
+module JA3Alert;
+
+export {
+  # Hashes JA3 maliciosos conocidos
+  const malicious_ja3: set[string] = {
+    "de350869b8c85de67a350c8d186f11e6",   # Cobalt Strike
+    "e7d705a3286e19ea42f587b344ee6865",   # Metasploit
+    "8bab54f22de07d88e90f5e8e5edb5a69",   # Emotet
+  } &amp;redef;
+
+  redef enum Notice::Type += { MaliciousJA3 };
+}
+
+event ssl_client_hello(c: connection, version: count, record_version: count,
+                       possible_ts: time, client_random: string,
+                       session_id: string, ciphers: index_vec,
+                       comp_methods: index_vec)
+{
+  # JA3 es calculado internamente por Zeek si está habilitado
+  # Este hook se ejecuta cuando hay coincidencia en ssl.log
+  if ( c$ssl?$ja3 &amp;&amp; c$ssl$ja3 in malicious_ja3 ) {
+    NOTICE([$note=JA3Alert::MaliciousJA3,
+            $conn=c,
+            $msg=fmt("JA3 malicioso detectado: %s desde %s hacia %s:%s",
+                     c$ssl$ja3, c$id$orig_h, c$id$resp_h, c$id$resp_p),
+            $identifier=cat(c$id$orig_h, c$ssl$ja3)]);
+  }
+}</code></pre>
+      </div>
+
+      <div class="soc-insight">
+        <p>"Los scripts Zeek (.zeek) son la forma nativa de automatizar detecciones. En producción
+        se integran con frameworks como Corelight o Security Onion, que ya incluyen reglas JA3
+        preconfiguradas."</p>
+      </div>
+
+      <h2>Tabla de referencia — campos útiles para hunting</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Campo</th>
+            <th>zeek-cut</th>
+            <th>Uso</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>JA3 hash</td>
+            <td><code>ja3</code></td>
+            <td>Identificar cliente/malware</td>
+          </tr>
+          <tr>
+            <td>JA3S hash</td>
+            <td><code>ja3s</code></td>
+            <td>Identificar infra C2</td>
+          </tr>
+          <tr>
+            <td>Sin SNI</td>
+            <td><code>server_name == "-"</code></td>
+            <td>C2 directo por IP</td>
+          </tr>
+          <tr>
+            <td>Puerto destino</td>
+            <td><code>id.resp_p</code></td>
+            <td>Puertos inusuales</td>
+          </tr>
+          <tr>
+            <td>Cipher débil</td>
+            <td><code>cipher</code></td>
+            <td>TLS_RSA_* = sin PFS</td>
+          </tr>
+          <tr>
+            <td>Resumed</td>
+            <td><code>resumed == "T"</code></td>
+            <td>Patrón beaconing</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </div><!-- /#tab-hunting -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 4 — SOC WORKFLOW
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-workflow">
+
+      <div class="section-intro">
+        <p><strong>Flujo de trabajo SOC</strong> con Zeek para investigar tráfico TLS sospechoso.
+        Seis pasos ordenados desde la captura hasta la escalación, con comandos exactos
+        listos para usar en producción.</p>
+      </div>
+
+      <h2>Workflow de análisis con Zeek</h2>
+
+      <div class="soc-flow">
+
+        <div class="soc-step">
+          <div class="soc-step-icon">①</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Captura — Iniciar Zeek sobre interfaz o PCAP</div>
+            <p class="soc-step-desc">
+              Iniciar Zeek en modo vivo o sobre un archivo capturado:<br>
+              <code>zeek -i eth0 local.zeek</code> — captura en tiempo real<br>
+              <code>zeek -r archivo.pcap</code> — análisis post-incident de PCAP existente<br>
+              Los logs se generan en el directorio actual o en <code>/opt/zeek/logs/current/</code>.
+            </p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">②</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Review inicial — Leer ssl.log buscando anomalías</div>
+            <p class="soc-step-desc">
+              <code>tail -f ssl.log | zeek-cut ts id.orig_h id.resp_h ja3 server_name</code><br>
+              Buscar señales de alerta temprana:<br>
+              — Sin SNI (<code>server_name == "-"</code>): posible C2 directo por IP<br>
+              — Puertos no estándar: 4443, 8080, 8888, etc.<br>
+              — Conexiones muy frecuentes al mismo destino: patrón beacon
+            </p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">③</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Extracción JA3 — Top hashes y comparación con threat intel</div>
+            <p class="soc-step-desc">
+              <code>cat ssl.log | zeek-cut ja3 | sort | uniq -c | sort -rn</code><br>
+              Comparar hashes extraídos contra feeds de threat intel:<br>
+              — <strong>sslbl.abuse.ch</strong>: base de datos JA3 maliciosos actualizada<br>
+              — <strong>ja3er.com</strong>: fingerprints por aplicación conocida<br>
+              Un hash desconocido con alta frecuencia merece investigación inmediata.
+            </p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">④</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Correlación JA3+JA3S — Identificar infraestructura C2</div>
+            <p class="soc-step-desc">
+              Los pares JA3+JA3S únicos generan un fingerprint completo de la sesión TLS.<br>
+              Pivot por JA3S para encontrar múltiples víctimas del mismo C2:<br>
+              <code>cat ssl.log | zeek-cut id.orig_h ja3s | awk '/HASH_JA3S/ {print $1}' | sort -u</code><br>
+              Si múltiples IPs internas aparecen con el mismo JA3S, es un indicador fuerte de compromiso lateral.
+            </p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">⑤</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Análisis temporal — Detección de beaconing</div>
+            <p class="soc-step-desc">
+              Los C2 automatizados se comunican a intervalos regulares (beaconing).<br>
+              Calcular la varianza de los intervalos entre conexiones al mismo destino.<br>
+              Varianza baja + intervalo promedio constante = alta probabilidad de C2 automatizado.<br>
+              El script Python de la tab "Hunting" implementa esta lógica lista para usar.
+            </p>
+          </div>
+        </div>
+
+        <div class="soc-step">
+          <div class="soc-step-icon">⑥</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">Documentación y escalación</div>
+            <p class="soc-step-desc">
+              Exportar evidencia con campos completos para el ticket de incidente:<br>
+              <code>cat ssl.log | zeek-cut ts uid id.orig_h id.resp_h id.resp_p ja3 ja3s server_name &gt; evidence.tsv</code><br>
+              Correlacionar con otros logs de Zeek: <code>conn.log</code> (duración, bytes),
+              <code>dns.log</code> (dominios resueltos), <code>http.log</code> (requests HTTP).<br>
+              Escalar con: IPs IOC, hashes JA3/JA3S, timestamps exactos, UIDs para pivot en SIEM.
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      <h2>Tabla de correlación IOC</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>IOC tipo</th>
+            <th>Zeek campo</th>
+            <th>Pivot hacia</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>JA3 hash</td>
+            <td><code>ssl.log/ja3</code></td>
+            <td>Todos los hosts con mismo JA3</td>
+          </tr>
+          <tr>
+            <td>JA3S hash</td>
+            <td><code>ssl.log/ja3s</code></td>
+            <td>Todos los clientes del mismo C2</td>
+          </tr>
+          <tr>
+            <td>IP destino</td>
+            <td><code>id.resp_h</code></td>
+            <td>conn.log, dns.log</td>
+          </tr>
+          <tr>
+            <td>Puerto</td>
+            <td><code>id.resp_p</code></td>
+            <td>Otros protocolos en mismo puerto</td>
+          </tr>
+          <tr>
+            <td>UID</td>
+            <td><code>uid</code></td>
+            <td>Correlación entre logs (ssl + conn + http)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Labs relacionados</h2>
+
+      <div class="tool-cards">
+        <a href="ja3.html" class="tool-card">
+          <div class="tool-card-icon">🔐</div>
+          <div class="tool-card-name">JA3 Core Lab</div>
+          <p class="tool-card-desc">Fundamentos del fingerprinting TLS y cálculo del hash JA3</p>
+        </a>
+        <a href="wireshark.html" class="tool-card">
+          <div class="tool-card-icon">🦈</div>
+          <div class="tool-card-name">Wireshark Lab</div>
+          <p class="tool-card-desc">Análisis visual de paquetes TLS y extracción JA3 en GUI</p>
+        </a>
+        <a href="snort.html" class="tool-card">
+          <div class="tool-card-icon">🐷</div>
+          <div class="tool-card-name">Snort/Suricata</div>
+          <p class="tool-card-desc">Reglas IDS/IPS basadas en fingerprints JA3 en tiempo real</p>
+        </a>
+        <a href="qradar.html" class="tool-card">
+          <div class="tool-card-icon">📊</div>
+          <div class="tool-card-name">QRadar</div>
+          <p class="tool-card-desc">Correlación de logs Zeek y alertas JA3 en el SIEM</p>
+        </a>
+        <a href="fortigate.html" class="tool-card">
+          <div class="tool-card-icon">🛡️</div>
+          <div class="tool-card-name">FortiGate</div>
+          <p class="tool-card-desc">Inspección TLS y bloqueo por fingerprint en el firewall</p>
+        </a>
+      </div>
+
+      <div class="soc-insight">
+        <p>"Zeek + SIEM = visibilidad total. Enviá los logs de Zeek a QRadar o Elastic con Filebeat,
+        y creá alertas basadas en JA3 maliciosos. La combinación Zeek (generación de logs) + SIEM
+        (correlación + alertas) es el stack estándar en SOC Tier 2."</p>
+      </div>
+
+    </div><!-- /#tab-workflow -->
+
+
+    <!-- ── Footer ── -->
+    <hr>
+    <p style="font-size:0.85rem; color:var(--text-muted)">
+      Continuá el lab TLS:
+      <a href="ja3.html">JA3 Core</a> ·
+      <a href="wireshark.html">Wireshark</a> ·
+      <a href="snort.html">Snort</a> ·
+      <a href="qradar.html">QRadar</a> ·
+      <a href="fortigate.html">FortiGate</a> ·
+      <a href="../../teoria/05_tls.html">Teoría TLS</a>
+    </p>
+
+    <a href="../../index.html">← Volver al inicio</a>
+
+  </div>
+
+  <!-- Tab navigation — reutilizamos el mismo initTabs() del ja3-lab.js -->
+  <script src="../../assets/js/ja3-lab.js"></script>
+  <script>
+    // En páginas secundarias solo necesitamos la navegación por tabs
+    document.addEventListener('DOMContentLoaded', () => {
+      // initTabs() ya se llama dentro de ja3-lab.js al DOMContentLoaded
+      // No se necesita código adicional para esta página
+    });
+  </script>
+</body>
+</html>

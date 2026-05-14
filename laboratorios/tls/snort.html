@@ -31,6 +31,7 @@
       <a href="snort.html"     class="lab-subnav-link active">🐷 Snort</a>
       <a href="qradar.html"    class="lab-subnav-link">📊 QRadar</a>
       <a href="fortigate.html" class="lab-subnav-link">🛡️ FortiGate</a>
+      <a href="zeek.html" class="lab-subnav-link">🦎 Zeek</a>
     </nav>
 
     <!-- ── Tab Navigation ── -->
@@ -590,6 +591,98 @@ alert tls $HOME_NET any -> $EXTERNAL_NET any (
           </tr>
         </tbody>
       </table>
+
+
+  <h3>Correlación multi-evento con flowbits</h3>
+  <p>Los <code>flowbits</code> permiten correlacionar múltiples eventos en la misma sesión TCP. Esto reduce falsos positivos al requerir que se cumplan dos condiciones para generar una alerta.</p>
+
+  <div class="code-block">
+    <div class="code-block-header">
+      <span class="code-block-lang">snort3</span>
+      <span class="code-block-desc">Correlación JA3 + Data Exfil con flowbits</span>
+    </div>
+    <pre><code># Paso 1: Detectar sesión con JA3 Cobalt Strike y marcarla
+alert tls any any -> any any (
+  msg:"JA3 Cobalt Strike detectado — sesión marcada";
+  flow:established,to_server;
+  ja3.hash; content:"de350869b8c85de67a350c8d186f11e6"; nocase;
+  flowbits:set,ja3.cobaltstrike;
+  flowbits:noalert;
+  classtype:trojan-activity;
+  sid:9000010; rev:1;
+)
+
+# Paso 2: Alertar si la sesión marcada transfiere datos
+alert tcp any any -> any any (
+  msg:"Cobalt Strike — transferencia de datos post-JA3";
+  flow:established;
+  flowbits:isset,ja3.cobaltstrike;
+  dsize:>1024;
+  threshold:type both, track by_src, count 5, seconds 60;
+  classtype:trojan-activity;
+  sid:9000011; rev:1;
+)
+
+# Paso 3: Limpiar el flowbit al cerrar sesión
+alert tcp any any -> any any (
+  msg:"Cobalt Strike — sesión finalizada";
+  flow:established;
+  flowbits:isset,ja3.cobaltstrike;
+  flags:F;
+  flowbits:unset,ja3.cobaltstrike;
+  flowbits:noalert;
+  sid:9000012; rev:1;
+)</code></pre>
+  </div>
+
+  <div class="soc-insight">
+    La correlación flowbits es mucho más robusta que una regla JA3 simple: requiere que el fingerprint sospechoso esté activo Y que la sesión transfiera datos. Esto elimina falsos positivos de scanners o herramientas legítimas que usan el mismo JA3 sin transferir payload.
+  </div>
+
+  <h3>Falsos positivos comunes y mitigación</h3>
+  <p>Algunas herramientas legítimas generan JA3 idénticos o similares a los de malware. Es fundamental mantener una whitelist y ajustar las reglas antes de producción.</p>
+
+  <table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:0.88rem;">
+    <thead>
+      <tr style="background:rgba(0,212,255,0.08);">
+        <th style="padding:0.6rem 0.8rem; text-align:left; border-bottom:1px solid rgba(0,212,255,0.2);">Herramienta / Contexto</th>
+        <th style="padding:0.6rem 0.8rem; text-align:left; border-bottom:1px solid rgba(0,212,255,0.2);">JA3 / Comportamiento</th>
+        <th style="padding:0.6rem 0.8rem; text-align:left; border-bottom:1px solid rgba(0,212,255,0.2);">Acción recomendada</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+        <td style="padding:0.55rem 0.8rem; color:#c0d0e0;">curl / libcurl</td>
+        <td style="padding:0.55rem 0.8rem; color:#8090a0; font-family:var(--font-mono); font-size:0.78rem;">51c64c77... (documentado)</td>
+        <td style="padding:0.55rem 0.8rem; color:#c0d0e0;">Whitelist IPs de servidores conocidos</td>
+      </tr>
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+        <td style="padding:0.55rem 0.8rem; color:#c0d0e0;">Python requests (urllib3)</td>
+        <td style="padding:0.55rem 0.8rem; color:#8090a0; font-family:var(--font-mono); font-size:0.78rem;">Varía con versión OpenSSL</td>
+        <td style="padding:0.55rem 0.8rem; color:#c0d0e0;">Correlacionar con User-Agent + IP</td>
+      </tr>
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+        <td style="padding:0.55rem 0.8rem; color:#c0d0e0;">Go net/http</td>
+        <td style="padding:0.55rem 0.8rem; color:#8090a0; font-family:var(--font-mono); font-size:0.78rem;">72a589da... (similar a malware)</td>
+        <td style="padding:0.55rem 0.8rem; color:#c0d0e0;">Validar dominio destino + IP reputación</td>
+      </tr>
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+        <td style="padding:0.55rem 0.8rem; color:#c0d0e0;">Scanners internos (Nessus, Qualys)</td>
+        <td style="padding:0.55rem 0.8rem; color:#8090a0; font-family:var(--font-mono); font-size:0.78rem;">JA3 de herramienta conocida</td>
+        <td style="padding:0.55rem 0.8rem; color:#c0d0e0;">Suppress por IP scanner: <code>suppress gen_id 1, sig_id 9000001, track by_src, ip 10.0.0.50</code></td>
+      </tr>
+      <tr>
+        <td style="padding:0.55rem 0.8rem; color:#c0d0e0;">Software corporativo (Slack, Teams)</td>
+        <td style="padding:0.55rem 0.8rem; color:#8090a0; font-family:var(--font-mono); font-size:0.78rem;">Electron/Chrome JA3</td>
+        <td style="padding:0.55rem 0.8rem; color:#c0d0e0;">Whitelist por dominio destino (.slack.com)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="warning-box">
+    <span class="warning-box-title">⚠️ ESTRATEGIA DE TUNING</span>
+    Nunca desplegar reglas JA3 directamente en modo block/drop en producción. Primero desplegá en alert-only durante 2 semanas, analizá los falsos positivos y construí tu suppress list antes de activar bloqueo.
+  </div>
 
     </div><!-- /#tab-tuning -->
 

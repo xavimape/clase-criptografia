@@ -244,23 +244,23 @@ function computeJa3Hash(ja3String) {
  */
 const JA3_PRESETS = {
   chrome: {
-    label: 'Chrome 96+ (Windows)',
+    label: 'Chrome (TLS 1.2)',
     category: 'benign',
-    description: 'Cliente web estándar. Incluye TLS 1.3 ciphers (4865-4867) y GREASE para compatibilidad.',
+    description: 'Google Chrome — negociación TLS 1.2 típica. Ciphers ECDHE y DHE con AES-GCM.',
     version:    771,
-    ciphers:    [0xaaaa, 4865, 4866, 4867, 49195, 49199, 49196, 49200, 52393, 52392, 49171, 49172, 156, 157, 47, 53],
-    extensions: [0xaaaa, 0, 23, 65281, 10, 11, 35, 16, 5, 13, 18, 51, 45, 43, 27, 17513, 0xaaaa],
-    curves:     [0xaaaa, 29, 23, 24],
+    ciphers:    [49195, 49199, 49196, 49200, 52393, 52392, 49171, 49172, 156, 157, 47, 53],
+    extensions: [0, 23, 65281, 10, 11, 35, 16, 5, 13, 18, 51, 45, 43, 21],
+    curves:     [29, 23, 24],
     ecFormats:  [0],
   },
   firefox: {
-    label: 'Firefox 95+ (Linux)',
+    label: 'Firefox (TLS 1.2)',
     category: 'benign',
-    description: 'Browser Mozilla. Diferente selección de cipher suites y extensiones que Chrome.',
+    description: 'Mozilla Firefox — negociación TLS 1.2 típica. Orden de ciphers distinto al de Chrome.',
     version:    771,
-    ciphers:    [4865, 4867, 4866, 49195, 49199, 52393, 52392, 49196, 49200, 49162, 49161, 49172, 49171, 51, 57, 47, 53],
-    extensions: [0, 23, 65281, 10, 11, 35, 16, 5, 34, 51, 43, 13, 45, 28, 21],
-    curves:     [29, 23, 24, 25, 256, 257],
+    ciphers:    [49195, 49199, 52393, 52392, 49196, 49200, 49162, 49161, 49171, 49172, 51, 57, 47, 53, 10],
+    extensions: [0, 23, 65281, 10, 11, 35, 16, 5, 13, 28],
+    curves:     [29, 23, 24, 25],
     ecFormats:  [0],
   },
   curl: {
@@ -396,6 +396,21 @@ const JA3_SIGNATURES = [
     type:     'benign',
     detail:   'Apple Safari y WebKit. Extensiones propias de Apple (ALPS) generan una huella distinta.',
     severity: 'info',
+  },
+  // ── Simulados educativos ───────────────────────────────────
+  {
+    hash:     '6734f37431670b3ab4292b8f60f29984',
+    name:     'TrickBot',
+    type:     'malware',
+    detail:   'Banking trojan modular — hash simulado con fines educativos',
+    severity: 'high',
+  },
+  {
+    hash:     'c2b9f1b3fdbb80d9e8f17eed7e17e6b4',
+    name:     'Sliver C2',
+    type:     'c2',
+    detail:   'Open-source C2 framework (BishopFox) — hash simulado con fines educativos',
+    severity: 'high',
   },
 ];
 

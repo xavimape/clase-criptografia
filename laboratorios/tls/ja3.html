@@ -33,6 +33,7 @@
       <a href="snort.html"      class="lab-subnav-link">🐷 Snort</a>
       <a href="qradar.html"     class="lab-subnav-link">📊 QRadar</a>
       <a href="fortigate.html"  class="lab-subnav-link">🛡️ FortiGate</a>
+      <a href="zeek.html"       class="lab-subnav-link">🦎 Zeek</a>
     </nav>
 
     <!-- ── TAB NAVIGATION ── -->
@@ -41,6 +42,8 @@
       <button class="tab-btn"        data-tab="calculator">02 · Calculadora JA3</button>
       <button class="tab-btn"        data-tab="signatures">03 · Firmas Conocidas</button>
       <button class="tab-btn"        data-tab="soc">04 · Respuesta SOC</button>
+      <button class="tab-btn"        data-tab="ja3s">JA3 vs JA3S</button>
+      <button class="tab-btn"        data-tab="limitaciones">Limitaciones</button>
     </div>
 
 
@@ -119,8 +122,7 @@
           <div class="tls-field ja3-field" data-explain="ciphers" style="cursor:pointer" title="Click para más info">
             <span class="tls-field-name">Cipher Suites</span>
             <span class="tls-field-value">
-              <span class="grease-excluded">0xaaaa</span><span class="grease-tag">GREASE</span>,
-              4865, 4866, 4867, 49195, 49199, 52393…
+              49199 (0xC02F), 49195 (0xC02B), 158 (0x009E), 60 (0x003C)
             </span>
             <span class="tls-field-note"><span class="ja3-tag">JA3 campo 2</span></span>
           </div>
@@ -203,14 +205,25 @@
         </div>
         <pre><code>JA3_STRING = SSLVersion,Ciphers,Extensions,EllipticCurves,ECPointFormats
 
-Ejemplo (Chrome 96):
-  771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,\
-  0-23-65281-10-11-35-16-5-13-18-51-45-43-27-17513,\
-  29-23-24,\
-  0
+Ejemplo pedagógico (TLS 1.2):
+  SSLVersion  = 771  (TLS 1.2 = 0x0303)
+  Ciphers     = 49199-49195-158-60
+                  0xC02F = TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                  0xC02B = TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+                  0x009E = TLS_DHE_RSA_WITH_AES_128_GCM_SHA256
+                  0x003C = TLS_RSA_WITH_AES_128_CBC_SHA256
+  Extensions  = 0-23-65281-10-11-16-5-13
+                  SNI, extended_master_secret, renegotiation_info,
+                  supported_groups, ec_point_formats, ALPN,
+                  status_request, signature_algorithms
+  Curves      = 29-23-24  (x25519, secp256r1, secp384r1)
+  ECFormats   = 0
 
-JA3_HASH = MD5(JA3_STRING)
-         = cd08e31494f9531f560d64c695473da9  ← huella final de 32 chars</code></pre>
+JA3_STRING = "771,49199-49195-158-60,0-23-65281-10-11-16-5-13,29-23-24,0"
+
+JA3_HASH   = MD5(JA3_STRING)
+           = ada70206e40642a3e4461f35503241d5  ← ejemplo calculado
+             <span class="t-warn"># Usá la calculadora interactiva para verificar el hash real</span></code></pre>
       </div>
 
       <blockquote>
@@ -410,6 +423,98 @@ JA3_HASH = MD5(JA3_STRING)
         <button class="sig-filter-btn preset-btn" data-filter="benign">✓ Legítimos</button>
       </div>
 
+      <!-- ── Fingerprints documentados en amenazas reales ── -->
+      <div class="threat-intel-section">
+        <h3>Fingerprints documentados en amenazas reales</h3>
+        <div class="threat-intel-grid">
+
+          <!-- Cobalt Strike -->
+          <div class="threat-intel-card critical">
+            <div class="threat-card-header">
+              <span class="threat-card-name">Cobalt Strike</span>
+              <span class="severity-badge critical">CRÍTICO</span>
+            </div>
+            <div class="threat-card-hash">de350869b8c85de67a350c8d186f11e6
+              <span class="source-tag documented">documentado</span>
+            </div>
+            <div class="threat-card-type">C2 Framework</div>
+            <div class="threat-card-behavior">Beacon por defecto pre-4.x. El malleable C2 profile puede alterar la huella en versiones modernas. Commonly seen in targeted intrusions.</div>
+            <div class="threat-card-source">Fuente: Fox-IT / Salesforce Research</div>
+          </div>
+
+          <!-- Metasploit -->
+          <div class="threat-intel-card critical">
+            <div class="threat-card-header">
+              <span class="threat-card-name">Metasploit</span>
+              <span class="severity-badge critical">CRÍTICO</span>
+            </div>
+            <div class="threat-card-hash">e7d705a3286e19ea42f587b344ee6865
+              <span class="source-tag documented">documentado</span>
+            </div>
+            <div class="threat-card-type">Exploit Framework</div>
+            <div class="threat-card-behavior">TLS muy básico: pocas ciphers, sin extensiones modernas. Huella muy reconocible incluso sin threat intel previo.</div>
+            <div class="threat-card-source">Fuente: Salesforce JA3 paper</div>
+          </div>
+
+          <!-- Emotet -->
+          <div class="threat-intel-card critical">
+            <div class="threat-card-header">
+              <span class="threat-card-name">Emotet</span>
+              <span class="severity-badge critical">CRÍTICO</span>
+            </div>
+            <div class="threat-card-hash">8bab54f22de07d88e90f5e8e5edb5a69
+              <span class="source-tag documented">documentado</span>
+            </div>
+            <div class="threat-card-type">Banking Trojan / Botnet</div>
+            <div class="threat-card-behavior">Usado en campañas masivas 2020-2022. El takedown de Emotet (Operación Ladybird) redujo su actividad, pero los hashes siguen siendo referencia de threat intel.</div>
+            <div class="threat-card-source">Fuente: abuse.ch</div>
+          </div>
+
+          <!-- Dridex -->
+          <div class="threat-intel-card critical">
+            <div class="threat-card-header">
+              <span class="threat-card-name">Dridex</span>
+              <span class="severity-badge critical">CRÍTICO</span>
+            </div>
+            <div class="threat-card-hash">19e29534fd49dd27d09234e7b95b86c1
+              <span class="source-tag documented">documentado</span>
+            </div>
+            <div class="threat-card-type">Banking Trojan</div>
+            <div class="threat-card-behavior">Observado en fases de exfiltración. Asociado con el grupo Evil Corp (EG). Mismo JA3 reportado también en BitPaymer y WastedLocker.</div>
+            <div class="threat-card-source">Fuente: Cado Security</div>
+          </div>
+
+          <!-- TrickBot -->
+          <div class="threat-intel-card high">
+            <div class="threat-card-header">
+              <span class="threat-card-name">TrickBot</span>
+              <span class="severity-badge high">ALTO</span>
+            </div>
+            <div class="threat-card-hash">6734f37431670b3ab4292b8f60f29984
+              <span class="source-tag simulated">simulado educativo</span>
+            </div>
+            <div class="threat-card-type">Banking Trojan modular</div>
+            <div class="threat-card-behavior">Troyano bancario modular con múltiples plugins (infostealer, lateral movement, dropper). Hash simulado con fines educativos — no usar en producción.</div>
+            <div class="threat-card-source">Fuente: documentado — hash simulado educativo</div>
+          </div>
+
+          <!-- Sliver C2 -->
+          <div class="threat-intel-card high">
+            <div class="threat-card-header">
+              <span class="threat-card-name">Sliver C2</span>
+              <span class="severity-badge high">ALTO</span>
+            </div>
+            <div class="threat-card-hash">c2b9f1b3fdbb80d9e8f17eed7e17e6b4
+              <span class="source-tag simulated">simulado educativo</span>
+            </div>
+            <div class="threat-card-type">Open-source C2</div>
+            <div class="threat-card-behavior">Framework C2 open-source de BishopFox, alternativa moderna a Cobalt Strike. Adopción creciente por actores avanzados. Hash simulado con fines educativos.</div>
+            <div class="threat-card-source">Fuente: BishopFox — hash simulado educativo</div>
+          </div>
+
+        </div><!-- /.threat-intel-grid -->
+      </div><!-- /.threat-intel-section -->
+
       <!-- Contenedor de cards — generado por ja3-lab.js -->
       <div id="sig-container" class="sig-grid"></div>
 
@@ -578,6 +683,377 @@ JA3_HASH = MD5(JA3_STRING)
       </table>
 
     </div><!-- /#tab-soc -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 5 — JA3 vs JA3S
+         Comparativa entre fingerprint del cliente y del servidor
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-ja3s">
+
+      <div class="section-intro">
+        <p><strong>JA3 vs JA3S.</strong> JA3 identifica al cliente TLS por su Client Hello.
+        JA3S (JA3 Server) identifica al servidor por su Server Hello. Juntos permiten fingerprinting
+        bidireccional de una sesión TLS completa — fundamental para detección de infraestructura C2.</p>
+      </div>
+
+      <h2>¿Qué captura cada uno?</h2>
+
+      <p>
+        <strong>JA3</strong> es el fingerprint del <code>CLIENT HELLO</code>: identifica al cliente,
+        la herramienta o el malware que inicia la conexión. Los campos capturados son los que el cliente
+        <em>ofrece</em> al servidor — su lista de ciphers preferidos, extensiones soportadas, curvas, etc.
+      </p>
+      <p>
+        <strong>JA3S</strong> es el fingerprint del <code>SERVER HELLO</code>: identifica al servidor
+        o la infraestructura que responde. La fórmula es más simple porque el servidor elige
+        <em>un solo cipher</em> de la lista del cliente:
+      </p>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">FÓRMULA JA3S</span>
+          <span class="code-block-desc">Más simple que JA3 — el servidor elige un único cipher</span>
+        </div>
+        <pre><code>JA3S_STRING = SSLVersion,Cipher,Extensions
+              └── SSLVersion : versión negociada (elegida por el servidor)
+              └── Cipher     : UNA cipher suite (la elegida, no una lista)
+              └── Extensions : extensiones presentes en el Server Hello
+
+Ejemplo:
+  JA3S_STRING = "771,49199,0-65281"
+  JA3S_HASH   = MD5("771,49199,0-65281")</code></pre>
+      </div>
+
+      <!-- ── Diagrama visual del handshake ── -->
+      <h2>Flujo del handshake TLS — origen de JA3 y JA3S</h2>
+
+      <div class="ja3s-flow">
+        <div class="ja3s-flow-diagram">
+
+          <!-- Nodo cliente -->
+          <div class="ja3s-node">
+            <span class="ja3s-node-label">CLIENTE</span>
+            <span class="ja3s-node-hash">JA3: de350869...<br><small style="color:#506070">fingerprint del cliente</small></span>
+          </div>
+
+          <!-- Flechas del handshake -->
+          <div class="ja3s-arrows">
+            <div class="ja3s-arrow to-server">
+              → Client Hello →<br>
+              <small>(ciphers, extensions, curves)</small>
+            </div>
+            <div style="border-top: 1px dashed rgba(0,212,255,0.15); width:100%; margin: 0.25rem 0;"></div>
+            <div class="ja3s-arrow to-client">
+              ← Server Hello ←<br>
+              <small>(cipher elegido, extensions)</small>
+            </div>
+          </div>
+
+          <!-- Nodo servidor -->
+          <div class="ja3s-node">
+            <span class="ja3s-node-label">SERVIDOR</span>
+            <span class="ja3s-node-hash">JA3S: ae4edc6f...<br><small style="color:#506070">fingerprint del servidor</small></span>
+          </div>
+
+        </div><!-- /.ja3s-flow-diagram -->
+        <p style="font-size:0.75rem; color:#506070; margin-top:0.75rem; text-align:center">
+          JA3 se calcula del Client Hello · JA3S se calcula del Server Hello
+        </p>
+      </div><!-- /.ja3s-flow -->
+
+      <!-- ── Tabla comparativa ── -->
+      <h2>Tabla comparativa de campos</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Campo</th>
+            <th>JA3 (Client Hello)</th>
+            <th>JA3S (Server Hello)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>SSLVersion</code></td>
+            <td>Versión propuesta por el cliente</td>
+            <td>Versión negociada (elegida por el servidor)</td>
+          </tr>
+          <tr>
+            <td><code>Ciphers</code></td>
+            <td>Lista completa de ciphers ofrecidas</td>
+            <td>Cipher único elegido por el servidor</td>
+          </tr>
+          <tr>
+            <td><code>Extensions</code></td>
+            <td>Lista de extensiones del cliente</td>
+            <td>Extensiones presentes en el Server Hello</td>
+          </tr>
+          <tr>
+            <td><code>EllipticCurves</code></td>
+            <td style="color:#39ff14">Sí — lista de grupos soportados</td>
+            <td style="color:var(--text-muted)">No — no presente en Server Hello</td>
+          </tr>
+          <tr>
+            <td><code>ECPointFormats</code></td>
+            <td style="color:#39ff14">Sí — formatos de punto EC</td>
+            <td style="color:var(--text-muted)">No — no presente en Server Hello</td>
+          </tr>
+          <tr>
+            <td><strong>Resultado</strong></td>
+            <td><strong>Fingerprint del cliente / herramienta</strong></td>
+            <td><strong>Fingerprint del servidor / infraestructura</strong></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ── Caso SOC real: Detección de infraestructura C2 ── -->
+      <h2>Caso SOC real: detección de infraestructura C2</h2>
+
+      <div class="soc-insight">
+        La correlación JA3 + JA3S es más poderosa que JA3 solo. Un atacante puede cambiar su JA3
+        randomizando el cipher order, pero no puede cambiar el JA3S del servidor C2. Si ves el mismo
+        JA3S respondiendo a múltiples JA3s sospechosos, tenés infraestructura C2 identificada — aunque
+        el cliente cambie su huella entre conexiones.
+      </div>
+
+      <p>Ejemplo de par documentado — <strong>Cobalt Strike</strong>:</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Dirección</th>
+            <th>Hash</th>
+            <th>Mensaje TLS</th>
+            <th>Fuente</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-family:var(--font-mono); font-size:0.8rem">ORIGEN_IP → DEST_IP:443</td>
+            <td style="font-family:var(--font-mono); font-size:0.75rem; color:#00d4ff">JA3: de350869b8c85de67a350c8d186f11e6</td>
+            <td>Client Hello</td>
+            <td style="font-size:0.78rem; color:var(--text-muted)">Fox-IT Research</td>
+          </tr>
+          <tr>
+            <td style="font-family:var(--font-mono); font-size:0.8rem">DEST_IP:443 → ORIGEN_IP</td>
+            <td style="font-family:var(--font-mono); font-size:0.75rem; color:#00ff99">JA3S: ae4edc6faf64d08308082ad26be60767</td>
+            <td>Server Hello</td>
+            <td style="font-size:0.78rem; color:var(--text-muted)">Fox-IT Research</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Workflow de detección en 3 pasos</h3>
+
+      <div class="soc-flow">
+        <div class="soc-step">
+          <div class="soc-step-icon">1</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">🔔 Detectar JA3 sospechoso en Client Hello</div>
+            <p class="soc-step-desc">El SIEM o IDS genera una alerta cuando detecta un JA3 hash en
+            la lista de amenazas conocidas. La alerta incluye la IP origen, destino, puerto y timestamp.
+            También puede detectar JA3s anómalos por baja entropía o ciphers inusuales.</p>
+          </div>
+        </div>
+        <div class="soc-step">
+          <div class="soc-step-icon">2</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">🔍 Capturar JA3S del Server Hello correspondiente</div>
+            <p class="soc-step-desc">Del mismo flujo TCP, extraer el Server Hello y calcular el JA3S.
+            Herramientas como Zeek lo hacen automáticamente y lo exportan junto al JA3 en el mismo log
+            (<code>ssl.log</code>). En Wireshark: filtrar por el mismo stream y buscar el Server Hello.</p>
+          </div>
+        </div>
+        <div class="soc-step">
+          <div class="soc-step-icon">3</div>
+          <div class="soc-step-content">
+            <div class="soc-step-title">🔗 Correlacionar par JA3 + JA3S contra threat intel</div>
+            <p class="soc-step-desc">Verificar el par JA3 + JA3S en bases de threat intel. El JA3S
+            es especialmente útil para pivot: buscar todas las IPs que hayan recibido el mismo JA3S —
+            eso identifica el servidor C2 aunque el cliente cambie su JA3. Documentar el par en el
+            MISP del SOC para compartir con la comunidad.</p>
+          </div>
+        </div>
+      </div><!-- /.soc-flow -->
+
+    </div><!-- /#tab-ja3s -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 6 — LIMITACIONES
+         Técnicas de evasión y mitigaciones para el SOC
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-limitaciones">
+
+      <div class="section-intro">
+        <p><strong>Limitaciones de JA3.</strong> JA3 es una herramienta poderosa pero no infalible.
+        Conocer sus limitaciones permite usar el indicador correctamente: como disparador de
+        investigación, no como evidencia concluyente.</p>
+      </div>
+
+      <!-- ── Timeline de evolución de la evasión ── -->
+      <h2>Timeline — evolución de las técnicas de evasión</h2>
+
+      <div class="limitation-timeline">
+
+        <div class="timeline-item">
+          <div class="timeline-year">2017</div>
+          <div class="timeline-event">JA3 publicado</div>
+          <div class="timeline-desc">John Althouse, Jeff Atkinson y Josh Atkins (Salesforce) publican el algoritmo JA3. Inmediatamente útil para identificar herramientas de ataque como Metasploit y Cobalt Strike.</div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-year">2018</div>
+          <div class="timeline-event">uTLS aparece</div>
+          <div class="timeline-desc">La librería Go <code>uTLS</code> permite imitar fingerprints de browsers (Chrome, Firefox) a nivel TLS. Cualquier herramienta escrita en Go puede pasar por un browser legítimo a nivel JA3.</div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-year">2019</div>
+          <div class="timeline-event">JA3 Randomization</div>
+          <div class="timeline-desc">Herramientas como curl agregan opciones para randomizar el cipher order. Resultado: JA3 diferente en cada conexión del mismo cliente. Algunos malware modernos adoptan esta técnica automáticamente.</div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-year">2020</div>
+          <div class="timeline-event">TLS 1.3 — adopción masiva</div>
+          <div class="timeline-desc">TLS 1.3 cifra muchas extensiones en el handshake. JA3 pierde información útil. La visibilidad es mayor con TLS 1.2 y sesiones que no usan 0-RTT.</div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-year">2021</div>
+          <div class="timeline-event">Malware imita Chrome/Firefox</div>
+          <div class="timeline-desc">RATs y frameworks C2 modernos (Sliver, Brute Ratel) implementan fingerprints de Chrome o Firefox por defecto. La huella JA3 parece legítima sin serlo.</div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-year">2023+</div>
+          <div class="timeline-event">QUIC / HTTP/3</div>
+          <div class="timeline-desc">HTTP/3 usa QUIC sobre UDP en lugar de TCP+TLS. JA3 no aplica a QUIC — requiere técnicas de fingerprinting distintas (QUIC fingerprinting, JARM adaptado). Tendencia creciente.</div>
+        </div>
+
+      </div><!-- /.limitation-timeline -->
+
+      <!-- ── Limitaciones detalladas ── -->
+      <h2>Limitaciones en detalle</h2>
+
+      <!-- Limitación 1: JA3 Randomization -->
+      <div class="warning-box">
+        <span class="warning-box-title">⚠ LIMITACIÓN 1 — JA3 Randomization</span>
+        <p>Herramientas y malware modernos pueden randomizar el orden de los cipher suites en cada
+        conexión. Resultado: el hash JA3 cambia en cada sesión del mismo cliente, haciendo inútil
+        la comparación directa con firmas conocidas.</p>
+        <div class="code-block" style="margin-top:0.75rem">
+          <div class="code-block-header">
+            <span class="code-block-lang">BASH</span>
+            <span class="code-block-desc">curl con cipher order personalizado</span>
+          </div>
+          <pre><code># curl puede especificar cipher order diferente
+curl --tls-cipher-list 'DEFAULT:!SHA' https://example.com
+# Resultado: JA3 diferente al default de curl
+# Algunos malware hacen esto automáticamente en cada beacon</code></pre>
+        </div>
+        <p style="margin-top:0.5rem; font-size:0.85rem">
+          <strong>Impacto SOC:</strong> No podés depender de un único hash JA3 para identificar una
+          herramienta si usa randomización. Correlacionar con IP, timing, volumen de conexiones y otros indicadores.
+        </p>
+      </div>
+
+      <!-- Limitación 2: uTLS Impersonation -->
+      <div class="warning-box">
+        <span class="warning-box-title">⚠ LIMITACIÓN 2 — uTLS — Librería de impersonación</span>
+        <p>La librería <code>uTLS</code> (Go) permite que cualquier aplicación imite exactamente el
+        fingerprint TLS de un browser. Un agente malicioso escrito en Go puede presentar el JA3 de
+        Chrome y pasar desapercibido a nivel de fingerprinting TLS.</p>
+        <div class="code-block" style="margin-top:0.75rem">
+          <div class="code-block-header">
+            <span class="code-block-lang">GO</span>
+            <span class="code-block-desc">uTLS — impersonación de Chrome</span>
+          </div>
+          <pre><code>// Go code que imita Chrome TLS fingerprint exactamente
+tlsConfig := &amp;utls.Config{ServerName: "example.com"}
+conn := utls.UClient(tcpConn, tlsConfig, utls.HelloChrome_Auto)
+// Resultado: JA3 idéntico al de Chrome — indistinguible por hash</code></pre>
+        </div>
+        <p style="margin-top:0.5rem; font-size:0.85rem">
+          <strong>Detección:</strong> Buscar inconsistencias — JA3 de Chrome pero sin User-Agent header
+          de Chrome, sin cookies de sesión típicas, patrones de timing inusuales, o acceso a paths
+          que un browser legítimo no visitaría.
+        </p>
+      </div>
+
+      <!-- Limitación 3: TLS 1.3 -->
+      <div class="warning-box">
+        <span class="warning-box-title">⚠ LIMITACIÓN 3 — TLS 1.3 y extensiones cifradas</span>
+        <p>En TLS 1.3 muchas extensiones van cifradas en el handshake (Encrypted Client Hello — ECH).
+        JA3 pierde información significativa porque no puede leer esas extensiones. Por eso
+        <strong>JA3 funciona mejor con TLS 1.2</strong> y sesiones que no usan 0-RTT (resumption).</p>
+        <p style="margin-top:0.5rem; font-size:0.85rem">
+          <strong>Alternativa complementaria:</strong> Usar <strong>JARM</strong> (fingerprinting activo
+          del servidor) que funciona independientemente de la versión TLS del cliente. JARM envía
+          varios Client Hellos especialmente crafteados y analiza las respuestas del servidor.
+        </p>
+      </div>
+
+      <!-- Limitación 4: Colisiones -->
+      <div class="warning-box">
+        <span class="warning-box-title">⚠ LIMITACIÓN 4 — Colisiones JA3</span>
+        <p>Múltiples aplicaciones pueden generar el mismo hash JA3. La probabilidad es baja pero real:
+        una librería TLS puede producir la misma huella que un malware si usa la misma versión y
+        configuración por defecto. MD5 fue elegido por velocidad, no por ausencia de colisiones.</p>
+        <p style="margin-top:0.5rem; font-size:0.85rem">
+          <strong>Regla de oro SOC:</strong> Nunca bloquear un host solo por JA3. Siempre correlacionar
+          con contexto: IP de destino, certificado, comportamiento del host, hora, volumen.
+        </p>
+      </div>
+
+      <!-- ── Tabla defensiva ── -->
+      <h2>Tabla de mitigaciones SOC</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Limitación</th>
+            <th>Mitigación recomendada para el SOC</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>JA3 Randomization</td>
+            <td>Correlacionar con IP destino, timing de beaconing, volumen de conexiones, y otros IOCs del host</td>
+          </tr>
+          <tr>
+            <td>uTLS Spoofing</td>
+            <td>Buscar inconsistencias: JA3 de Chrome pero sin User-Agent header de Chrome, sin cookies, con patrones de acceso atípicos</td>
+          </tr>
+          <tr>
+            <td>TLS 1.3 — visibilidad reducida</td>
+            <td>Complementar con JARM fingerprinting (activo) y análisis de certificados TLS del servidor</td>
+          </tr>
+          <tr>
+            <td>Colisiones de hash</td>
+            <td>Nunca bloquear solo por JA3 — siempre correlacionar múltiples indicadores antes de tomar acción</td>
+          </tr>
+          <tr>
+            <td>Malware imita browsers</td>
+            <td>Correlacionar JA3 con JA3S del servidor — el servidor C2 suele tener un JA3S más estable y detectable</td>
+          </tr>
+          <tr>
+            <td>QUIC / HTTP/3</td>
+            <td>Implementar inspección de tráfico QUIC — requiere soluciones específicas (algunos NGFWs ya lo soportan)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="soc-insight">
+        JA3 es un indicador, no una prueba. En un SOC maduro, un match de JA3 sospechoso dispara
+        una investigación, no un bloqueo automático. La potencia de JA3 está en la correlación:
+        mismo JA3 en múltiples hosts, par JA3+JA3S consistente, JA3 anómalo combinado con
+        comportamiento de beaconing — eso es lo que construye un caso sólido.
+      </div>
+
+    </div><!-- /#tab-limitaciones -->
 
 
     <!-- ── Footer ── -->

@@ -31,6 +31,7 @@
       <a href="snort.html"     class="lab-subnav-link">🐷 Snort</a>
       <a href="qradar.html"    class="lab-subnav-link">📊 QRadar</a>
       <a href="fortigate.html" class="lab-subnav-link">🛡️ FortiGate</a>
+      <a href="zeek.html" class="lab-subnav-link">🦎 Zeek</a>
     </nav>
 
     <!-- ── Tab Navigation ── -->
@@ -39,6 +40,7 @@
       <button class="tab-btn"        data-tab="ja3extract">02 · Extracción JA3</button>
       <button class="tab-btn"        data-tab="tshark">03 · tshark en CLI</button>
       <button class="tab-btn"        data-tab="workflow">04 · Workflow SOC</button>
+      <button class="tab-btn" data-tab="pcaps">PCAPs Lab</button>
     </div>
 
 
@@ -583,6 +585,123 @@ tshark -r captura.pcap \
       </table>
 
     </div><!-- /#tab-workflow -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 5 — PCAPs LAB
+    ══════════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-pcaps">
+  <div class="section-intro">
+    <h2>PCAPs para práctica</h2>
+    <p>Los PCAPs son capturas de tráfico real o simulado que permiten practicar análisis TLS/JA3 sin necesidad de tráfico en vivo. Esta sección explica cómo generarlos y analizarlos con tshark y Wireshark.</p>
+  </div>
+
+  <div class="soc-insight">
+    Los PCAPs de esta sección están disponibles como placeholders en <code>laboratorios/tls/pcaps/</code>. Cada archivo explica cómo generar la captura real en tu entorno de laboratorio.
+  </div>
+
+  <h3>Escenarios disponibles</h3>
+  <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); gap:1rem; margin:1.25rem 0;">
+
+    <!-- Card 1: Chrome -->
+    <div style="background:var(--bg-card); border:1px solid rgba(0,212,255,0.15); border-left:3px solid #00d4ff; border-radius:8px; padding:1.1rem;">
+      <div style="font-family:var(--font-mono); font-size:0.72rem; color:var(--accent); font-weight:700; margin-bottom:0.5rem;">ESCENARIO 01 · BENIGNO</div>
+      <div style="font-weight:700; color:#e0eaf0; margin-bottom:0.5rem;">Chrome TLS 1.2</div>
+      <div style="font-size:0.82rem; color:#8090a0; margin-bottom:0.75rem;">Tráfico HTTPS típico de navegador. Establece la línea base de JA3 legítimo.</div>
+      <div style="font-family:var(--font-mono); font-size:0.7rem; color:#4a90a0; background:rgba(0,0,0,0.3); padding:0.3rem 0.5rem; border-radius:4px; margin-bottom:0.5rem;">JA3: ada70206...503241d5</div>
+      <div style="font-size:0.78rem; color:#6080a0;">📄 <a href="pcaps/chrome_tls12_placeholder.txt" style="color:var(--accent); text-decoration:none;">Ver instrucciones de captura</a></div>
+    </div>
+
+    <!-- Card 2: curl -->
+    <div style="background:var(--bg-card); border:1px solid rgba(0,212,255,0.15); border-left:3px solid #44cc44; border-radius:8px; padding:1.1rem;">
+      <div style="font-family:var(--font-mono); font-size:0.72rem; color:#44cc44; font-weight:700; margin-bottom:0.5rem;">ESCENARIO 02 · HERRAMIENTA</div>
+      <div style="font-weight:700; color:#e0eaf0; margin-bottom:0.5rem;">curl HTTPS</div>
+      <div style="font-size:0.82rem; color:#8090a0; margin-bottom:0.75rem;">Tráfico de herramienta CLI. JA3 diferente a Chrome aunque vaya al mismo destino.</div>
+      <div style="font-family:var(--font-mono); font-size:0.7rem; color:#4a90a0; background:rgba(0,0,0,0.3); padding:0.3rem 0.5rem; border-radius:4px; margin-bottom:0.5rem;">JA3: 51c64c77...68c58a8</div>
+      <div style="font-size:0.78rem; color:#6080a0;">📄 <a href="pcaps/curl_tls_placeholder.txt" style="color:var(--accent); text-decoration:none;">Ver instrucciones de captura</a></div>
+    </div>
+
+    <!-- Card 3: Beacon -->
+    <div style="background:var(--bg-card); border:1px solid rgba(255,68,68,0.3); border-left:3px solid #ff4444; border-radius:8px; padding:1.1rem;">
+      <div style="font-family:var(--font-mono); font-size:0.72rem; color:#ff4444; font-weight:700; margin-bottom:0.5rem;">ESCENARIO 03 · SIMULADO C2</div>
+      <div style="font-weight:700; color:#e0eaf0; margin-bottom:0.5rem;">Beacon C2 (simulado)</div>
+      <div style="font-size:0.82rem; color:#8090a0; margin-bottom:0.75rem;">Simulación de implante C2 con intervalo regular de 5 min. JA3 Cobalt Strike conocido.</div>
+      <div style="font-family:var(--font-mono); font-size:0.7rem; color:#ff6644; background:rgba(0,0,0,0.3); padding:0.3rem 0.5rem; border-radius:4px; margin-bottom:0.5rem;">JA3: de350869...3b186f11e6 ⚠️</div>
+      <div style="font-size:0.78rem; color:#6080a0;">📄 <a href="pcaps/malware_beacon_placeholder.txt" style="color:var(--accent); text-decoration:none;">Ver instrucciones (solo lab)</a></div>
+    </div>
+
+  </div>
+
+  <h3>Análisis con tshark</h3>
+
+  <div class="code-block">
+    <div class="code-block-header">
+      <span class="code-block-lang">bash</span>
+      <span class="code-block-desc">Extracción JA3 de PCAP</span>
+    </div>
+    <pre><code># Listar todos los Client Hello con JA3
+tshark -r traffic.pcap \
+  -Y "tls.handshake.type == 1" \
+  -T fields \
+  -e frame.number \
+  -e ip.src \
+  -e ip.dst \
+  -e tcp.dstport \
+  -e tls.handshake.ja3 \
+  -e tls.handshake.extensions_server_name
+
+# Contar JA3 únicos
+tshark -r traffic.pcap \
+  -Y "tls.handshake.type == 1" \
+  -T fields -e tls.handshake.ja3 | \
+  sort | uniq -c | sort -rn
+
+# Buscar JA3 específico (Cobalt Strike)
+tshark -r traffic.pcap \
+  -Y "tls.handshake.type == 1" | \
+  grep "de350869b8c85de67a350c8d186f11e6"
+
+# Exportar a CSV para análisis
+tshark -r traffic.pcap \
+  -Y "tls.handshake.type == 1" \
+  -T fields \
+  -e frame.time \
+  -e ip.src -e ip.dst \
+  -e tls.handshake.ja3 \
+  -E separator=, -E header=y \
+  > ja3_export.csv</code></pre>
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header">
+      <span class="code-block-lang">bash</span>
+      <span class="code-block-desc">Detección de beaconing en PCAP</span>
+    </div>
+    <pre><code># Analizar intervalos entre conexiones al mismo destino
+tshark -r malware_beacon_sim.pcap \
+  -T fields \
+  -e frame.time_epoch \
+  -e ip.src \
+  -e ip.dst \
+  -e tcp.dstport \
+  -e tls.handshake.ja3 \
+  -Y "tls.handshake.type == 1" | \
+  sort -k3,4 | \
+  awk 'BEGIN{prev_dst=""; prev_ts=0}
+       {
+         key=$3":"$4;
+         if(key==prev_key) {
+           delta=$1-prev_ts;
+           printf "Delta %ds → %s→%s:%s JA3:%s\n", delta, $2, $3, $4, $5;
+         }
+         prev_key=key; prev_ts=$1
+       }'</code></pre>
+  </div>
+
+  <div class="hint-box">
+    💡 <strong>Flujo forense recomendado:</strong> Abrí el PCAP en Wireshark → filtrá <code>tls.handshake.type == 1</code> → revisá JA3 en la columna de detalles → exportá con tshark → comparar contra threat intel feeds.
+  </div>
+</div>
 
 
     <!-- ── Footer ── -->

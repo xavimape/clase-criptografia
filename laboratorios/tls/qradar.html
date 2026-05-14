@@ -31,6 +31,7 @@
       <a href="snort.html"     class="lab-subnav-link">🐷 Snort</a>
       <a href="qradar.html"    class="lab-subnav-link active">📊 QRadar</a>
       <a href="fortigate.html" class="lab-subnav-link">🛡️ FortiGate</a>
+      <a href="zeek.html" class="lab-subnav-link">🦎 Zeek</a>
     </nav>
 
     <!-- ── Tab Navigation ── -->
@@ -328,6 +329,131 @@ HAVING
 ORDER BY total_conexiones DESC
 LAST 6 HOURS</code></pre>
       </div>
+
+
+  <h3>Building Blocks para JA3</h3>
+  <p>Los <em>Building Blocks</em> en QRadar son reglas reutilizables que actúan como condiciones compartidas entre múltiples reglas de correlación. Permiten centralizar la lógica de detección.</p>
+
+  <div class="code-block">
+    <div class="code-block-header">
+      <span class="code-block-lang">qradar</span>
+      <span class="code-block-desc">BB: JA3 Hash Malicioso Conocido</span>
+    </div>
+    <pre><code>Building Block Name: BB: Known Malicious JA3 Hash
+Tipo: Event Rule
+
+Condición:
+  AND when the event Custom Property 'JA3_Hash'
+      is contained in Reference Set 'Malicious_JA3_Hashes'
+
+Reference Set: Malicious_JA3_Hashes (tipo: ALN)
+Contenido:
+  de350869b8c85de67a350c8d186f11e6  (Cobalt Strike)
+  e7d705a3286e19ea42f587b344ee6865  (Metasploit)
+  8bab54f22de07d88e90f5e8e5edb5a69  (Emotet)
+  19e29534fd49dd27d09234e7b95b86c1  (Dridex)
+
+Uso: Este BB se referencia en múltiples reglas de correlación
+     sin duplicar la lista de hashes en cada regla.</code></pre>
+  </div>
+
+  <h3>AQL — Detección de Beaconing TLS</h3>
+  <p>Esta query detecta hosts que se conectan al mismo destino con el mismo JA3 a intervalos regulares — patrón típico de C2 beacon.</p>
+
+  <div class="code-block">
+    <div class="code-block-header">
+      <span class="code-block-lang">aql</span>
+      <span class="code-block-desc">Detección beaconing ~5 minutos (300s)</span>
+    </div>
+    <pre><code>SELECT
+  sourceip,
+  destinationip,
+  destinationport,
+  CUSTOMPROPERTYVALUE('JA3_Hash') AS ja3,
+  COUNT(*) AS total_conexiones,
+  MIN(starttime) AS primera_conexion,
+  MAX(starttime) AS ultima_conexion,
+  (MAX(starttime) - MIN(starttime)) / NULLIF(COUNT(*) - 1, 0) AS intervalo_promedio_ms
+FROM events
+WHERE
+  CUSTOMPROPERTYVALUE('JA3_Hash') IS NOT NULL
+  AND LOGSOURCETYPENAME(devicetype) LIKE '%TLS%'
+  AND destinationport NOT IN (80, 443)
+GROUP BY sourceip, destinationip, destinationport, ja3
+HAVING
+  COUNT(*) >= 8
+  AND intervalo_promedio_ms BETWEEN 270000 AND 330000
+ORDER BY total_conexiones DESC
+LAST 24 HOURS</code></pre>
+  </div>
+
+  <div class="soc-insight">
+    Un intervalo de 270-330 segundos (±10% de 300s) captura beacons configurados a 5 minutos con jitter. Cobalt Strike por defecto usa jitter del 0-10%. Ajustá el rango según el malware que estés buscando.
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header">
+      <span class="code-block-lang">aql</span>
+      <span class="code-block-desc">Anomalías TLS — puertos no estándar + JA3 sospechoso</span>
+    </div>
+    <pre><code>SELECT
+  sourceip,
+  destinationip,
+  destinationport,
+  CUSTOMPROPERTYVALUE('JA3_Hash') AS ja3,
+  CUSTOMPROPERTYVALUE('TLS_SNI') AS server_name,
+  COUNT(*) AS ocurrencias,
+  DATEFORMAT(MIN(starttime), 'YYYY-MM-dd HH:mm:ss') AS primera_vez
+FROM events
+WHERE
+  CUSTOMPROPERTYVALUE('JA3_Hash') IS NOT NULL
+  AND destinationport NOT IN (443, 8443, 993, 465, 636, 5061)
+  AND (CUSTOMPROPERTYVALUE('TLS_SNI') IS NULL
+       OR CUSTOMPROPERTYVALUE('TLS_SNI') = '')
+GROUP BY sourceip, destinationip, destinationport, ja3, server_name
+HAVING COUNT(*) > 3
+ORDER BY ocurrencias DESC
+LAST 7 DAYS</code></pre>
+  </div>
+
+  <h3>Flujo de investigación de offense</h3>
+  <div class="soc-flow">
+    <div class="soc-step">
+      <div class="soc-step-icon">1</div>
+      <div class="soc-step-content">
+        <strong>Offense recibido</strong>
+        <p>QRadar genera offense por JA3 malicioso. Revisá: IP origen, destino, frecuencia, magnitud del offense.</p>
+      </div>
+    </div>
+    <div class="soc-step">
+      <div class="soc-step-icon">2</div>
+      <div class="soc-step-content">
+        <strong>AQL drill-down</strong>
+        <p>Corré la query de beaconing sobre la IP origen del offense. Confirmá si hay patrón de intervalo regular.</p>
+      </div>
+    </div>
+    <div class="soc-step">
+      <div class="soc-step-icon">3</div>
+      <div class="soc-step-content">
+        <strong>Enriquecimiento</strong>
+        <p>Lookups: IP destino en threat intel, WHOIS, Shodan. ¿El JA3S del servidor coincide con infra C2 conocida?</p>
+      </div>
+    </div>
+    <div class="soc-step">
+      <div class="soc-step-icon">4</div>
+      <div class="soc-step-content">
+        <strong>Correlación lateral</strong>
+        <p>¿Otros hosts internos conectaron al mismo destino o tienen el mismo JA3? → Posible compromiso múltiple.</p>
+      </div>
+    </div>
+    <div class="soc-step">
+      <div class="soc-step-icon">5</div>
+      <div class="soc-step-content">
+        <strong>Escalación</strong>
+        <p>Documentar IOCs: IPs, JA3 hashes, rangos temporales. Contención: bloquear destino en firewall / aislar host.</p>
+      </div>
+    </div>
+  </div>
 
     </div><!-- /#tab-aql -->
 

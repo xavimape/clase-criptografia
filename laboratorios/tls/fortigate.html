@@ -31,6 +31,7 @@
       <a href="snort.html"     class="lab-subnav-link">🐷 Snort</a>
       <a href="qradar.html"    class="lab-subnav-link">📊 QRadar</a>
       <a href="fortigate.html" class="lab-subnav-link active">🛡️ FortiGate</a>
+      <a href="zeek.html" class="lab-subnav-link">🦎 Zeek</a>
     </nav>
 
     <!-- ── Tab Navigation ── -->
@@ -281,6 +282,115 @@ dir=outgoing
 sentbyte=1024 rcvdbyte=2048
 duration=120</code></pre>
       </div>
+
+
+  <h3>Certificados sospechosos y TLS Telemetry</h3>
+  <p>Más allá del JA3, FortiGate puede generar telemetría sobre el certificado del servidor. Combinar JA3 anómalo con certificado sospechoso eleva dramáticamente la confianza de una alerta.</p>
+
+  <div class="code-block">
+    <div class="code-block-header">
+      <span class="code-block-lang">fortios</span>
+      <span class="code-block-desc">Configuración: alertas por certificados sospechosos</span>
+    </div>
+    <pre><code>config firewall ssl-ssh-profile
+    edit "SOC-Inspection-Profile"
+        set comment "Perfil con logging de anomalías TLS"
+
+        # Logging de certificados inválidos (NO bloquear aún — solo loguear)
+        set expired-server-cert allow-and-log
+        set revoked-server-cert allow-and-log
+        set untrusted-server-cert allow-and-log
+
+        # Habilitar JA3 fingerprinting
+        set ja3-enabled enable
+
+        # Logging de inspección
+        set ssl-exempt-allow-expired-cert disable
+    next
+end
+
+# Aplicar el perfil a una policy
+config firewall policy
+    edit 100
+        set name "Internet-Access-SOC"
+        set ssl-ssh-profile "SOC-Inspection-Profile"
+        set utm-status enable
+    next
+end</code></pre>
+  </div>
+
+  <table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:0.88rem;">
+    <caption style="color:#8090a0; font-size:0.8rem; margin-bottom:0.5rem; text-align:left;">Red Flags TLS para analistas SOC</caption>
+    <thead>
+      <tr style="background:rgba(0,212,255,0.08);">
+        <th style="padding:0.6rem 0.8rem; text-align:left; border-bottom:1px solid rgba(0,212,255,0.2);">Indicador</th>
+        <th style="padding:0.6rem 0.8rem; text-align:left; border-bottom:1px solid rgba(0,212,255,0.2);">Descripción</th>
+        <th style="padding:0.6rem 0.8rem; text-align:left; border-bottom:1px solid rgba(0,212,255,0.2);">Nivel de riesgo</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+        <td style="padding:0.55rem 0.8rem; color:#c0d0e0;">Certificado autofirmado</td>
+        <td style="padding:0.55rem 0.8rem; color:#8090a0;">issuer == subject, CN genérico</td>
+        <td style="padding:0.55rem 0.8rem;"><span style="background:rgba(255,136,0,0.2); color:#ff8800; padding:0.15rem 0.4rem; border-radius:3px; font-size:0.75rem;">ALTO</span></td>
+      </tr>
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+        <td style="padding:0.55rem 0.8rem; color:#c0d0e0;">Sin SNI (server_name vacío)</td>
+        <td style="padding:0.55rem 0.8rem; color:#8090a0;">Conexión directa a IP, no a dominio</td>
+        <td style="padding:0.55rem 0.8rem;"><span style="background:rgba(255,136,0,0.2); color:#ff8800; padding:0.15rem 0.4rem; border-radius:3px; font-size:0.75rem;">ALTO</span></td>
+      </tr>
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+        <td style="padding:0.55rem 0.8rem; color:#c0d0e0;">Certificado expirado</td>
+        <td style="padding:0.55rem 0.8rem; color:#8090a0;">notAfter en el pasado</td>
+        <td style="padding:0.55rem 0.8rem;"><span style="background:rgba(255,204,0,0.2); color:#ffcc00; padding:0.15rem 0.4rem; border-radius:3px; font-size:0.75rem;">MEDIO</span></td>
+      </tr>
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+        <td style="padding:0.55rem 0.8rem; color:#c0d0e0;">JA3 malicioso conocido</td>
+        <td style="padding:0.55rem 0.8rem; color:#8090a0;">Match contra threat intel feed</td>
+        <td style="padding:0.55rem 0.8rem;"><span style="background:rgba(255,68,68,0.2); color:#ff4444; padding:0.15rem 0.4rem; border-radius:3px; font-size:0.75rem;">CRÍTICO</span></td>
+      </tr>
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+        <td style="padding:0.55rem 0.8rem; color:#c0d0e0;">Puerto inusual (no 443/8443)</td>
+        <td style="padding:0.55rem 0.8rem; color:#8090a0;">TLS en puertos HTTP o custom</td>
+        <td style="padding:0.55rem 0.8rem;"><span style="background:rgba(255,204,0,0.2); color:#ffcc00; padding:0.15rem 0.4rem; border-radius:3px; font-size:0.75rem;">MEDIO</span></td>
+      </tr>
+      <tr>
+        <td style="padding:0.55rem 0.8rem; color:#c0d0e0;">JA3 anomalía + cert sospechoso</td>
+        <td style="padding:0.55rem 0.8rem; color:#8090a0;">Combinación de dos indicadores</td>
+        <td style="padding:0.55rem 0.8rem;"><span style="background:rgba(255,68,68,0.2); color:#ff4444; padding:0.15rem 0.4rem; border-radius:3px; font-size:0.75rem;">CRÍTICO</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="soc-insight">
+    La correlación <strong>JA3 anómalo + certificado autofirmado + sin SNI + puerto inusual</strong> es casi siempre C2. Cada indicador solo tiene baja confianza; la combinación supera el 95% de precisión según investigaciones de Salesforce y Fox-IT.
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header">
+      <span class="code-block-lang">fortios</span>
+      <span class="code-block-desc">Campos de log FortiGate relevantes para correlación TLS</span>
+    </div>
+    <pre><code># Campos presentes en los logs UTM/SSL de FortiGate:
+#
+# ja3         → hash JA3 del cliente (Client Hello)
+# ja3s        → hash JA3S del servidor (Server Hello)
+# sni         → Server Name Indication del cliente
+# certcn      → Common Name del certificado del servidor
+# certissuer  → Emisor del certificado
+# certexp     → Fecha de expiración
+# certstat    → Estado: valid, expired, selfsigned, untrusted
+#
+# Ejemplo de log con todos los campos:
+date=2024-05-13 time=10:23:45 devname=FGT-01 type=utm subtype=ssl
+action=passthrough srcip=10.0.0.142 dstip=185.220.101.47
+dstport=4443 proto=6 sni="" certcn="evil.example"
+certissuer="evil.example" certstat="selfsigned"
+ja3="de350869b8c85de67a350c8d186f11e6"
+ja3s="ae4edc6faf64d08308082ad26be60767"
+#
+# → sni vacío + certstat=selfsigned + JA3 conocido = ALERTA INMEDIATA</code></pre>
+  </div>
 
     </div><!-- /#tab-ja3logging -->
 

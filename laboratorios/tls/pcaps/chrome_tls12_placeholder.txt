@@ -1,0 +1,33 @@
+PCAP PLACEHOLDER — Chrome TLS 1.2
+===================================
+Archivo: chrome_tls12_sample.pcap
+
+DESCRIPCIÓN:
+  Tráfico HTTPS generado por Google Chrome en modo TLS 1.2.
+  Útil para practicar extracción de JA3 con tshark y Wireshark.
+
+JA3 ESPERADO:
+  Hash: ada70206e40642a3e4461f35503241d5
+  JA3 string: 771,49195-49199-52393-52392-49196-49200-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-18-51-45-43-21,29-23-24,0
+
+CÓMO CAPTURARLO:
+  1. Abrí Wireshark o iniciá tcpdump:
+     tcpdump -i eth0 -w chrome_tls12_sample.pcap 'tcp port 443'
+  2. Abrí Chrome y forzá TLS 1.2:
+     chrome --ssl-version-max=tls1.2 https://www.google.com
+  3. Detené la captura después de cargar algunas páginas.
+  4. Filtrá en Wireshark: tls.handshake.type == 1
+
+ANÁLISIS CON TSHARK:
+  tshark -r chrome_tls12_sample.pcap \
+    -Y "tls.handshake.type == 1" \
+    -T fields \
+    -e ip.src \
+    -e ip.dst \
+    -e tls.handshake.ja3 \
+    -e tls.handshake.extensions_server_name
+
+CAMPOS A OBSERVAR:
+  - tls.handshake.ciphersuite      → lista de cipher suites ofrecidos
+  - tls.handshake.extensions_type  → extensiones incluidas
+  - tls.handshake.ja3              → fingerprint calculado por Wireshark

@@ -1,0 +1,40 @@
+PCAP PLACEHOLDER — curl TLS
+=============================
+Archivo: curl_tls_sample.pcap
+
+DESCRIPCIÓN:
+  Tráfico HTTPS generado por curl en modo TLS 1.2.
+  Ejemplo de herramienta de línea de comandos con fingerprint conocido.
+
+JA3 ESPERADO:
+  Hash: 51c64c77e60f3980eea90869b68c58a8
+  Nota: puede variar según versión de curl y OpenSSL.
+
+CÓMO CAPTURARLO:
+  1. Iniciá la captura:
+     tcpdump -i eth0 -w curl_tls_sample.pcap 'tcp port 443'
+  2. En otra terminal:
+     curl --tls-max 1.2 -v https://example.com
+  3. Detené la captura.
+
+ANÁLISIS CON TSHARK:
+  tshark -r curl_tls_sample.pcap \
+    -Y "tls.handshake.type == 1" \
+    -T fields \
+    -e ip.src -e ip.dst \
+    -e tls.handshake.ja3 \
+    -e tls.handshake.extensions_server_name
+
+DIFERENCIAS CON CHROME:
+  - curl no envía extensión renegotiation_info (65281) por defecto
+  - curl tiene menos cipher suites
+  - curl no envía SNI si no se especifica host
+  - JA3 diferente → herramienta diferente
+
+VARIACIONES:
+  # Con User-Agent personalizado (JA3 no cambia):
+  curl -A "Mozilla/5.0" https://example.com
+  # El JA3 sigue siendo de curl — el UA no afecta JA3
+
+  # Randomización de ciphers (JA3 cambia):
+  curl --ciphers 'AES256-SHA:AES128-SHA' https://example.com

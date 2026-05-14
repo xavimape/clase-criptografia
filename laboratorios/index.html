@@ -5,6 +5,42 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Laboratorios — Cryptography for SOC Analysts</title>
   <link rel="stylesheet" href="../assets/css/style.css">
+  <style>
+    /* Badge NEW para cards recientes */
+    .card-badge-new {
+      display: inline-block;
+      font-family: 'Consolas', monospace;
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: #00d4ff;
+      background: rgba(0, 212, 255, 0.12);
+      border: 1px solid rgba(0, 212, 255, 0.35);
+      border-radius: 3px;
+      padding: 0.15rem 0.4rem;
+      vertical-align: middle;
+      margin-left: 0.4rem;
+      position: relative;
+      top: -1px;
+    }
+    /* Sub-descripción en cards */
+    .card-desc {
+      font-size: 0.72rem;
+      color: #4a6070;
+      margin-top: 0.2rem;
+      line-height: 1.4;
+    }
+    /* Sección TLS Lab Suite */
+    .section-label {
+      font-family: 'Consolas', monospace;
+      font-size: 0.72rem;
+      color: #00d4ff;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin: 2rem 0 0.5rem;
+      opacity: 0.7;
+    }
+  </style>
 </head>
 <body>
 
@@ -33,6 +69,14 @@
           <span class="card-num">02</span>
           <span class="card-icon">🌐</span>
           <span class="card-label">TLS / JA3 Fingerprinting Lab</span>
+          <span class="card-desc">JA3 · Wireshark · Snort · QRadar · FortiGate · Zeek</span>
+        </a>
+
+        <a href="tls/zeek.html" class="card">
+          <span class="card-num">03</span>
+          <span class="card-icon">🦎</span>
+          <span class="card-label">Zeek — Análisis TLS<span class="card-badge-new">NEW</span></span>
+          <span class="card-desc">ssl.log · ja3.log · Hunting · SOC Workflow</span>
         </a>
 
       </nav>
