@@ -1,98 +1,262 @@
 🌐 Spanish version: [README.md](README.md)
 
-# Cryptography for SOC Analysts
+# Applied Cryptography for SOC Analysts, Threat Intelligence and DFIR
 
 ## Overview
 
-This repository offers a practical introduction to cryptography applied in real security analysis contexts. The material combines conceptual foundations, functional Python implementations, and analysis cases based on situations a SOC analyst may encounter in daily work.
+This repository provides educational content focused on applied cryptography, traffic analysis, telemetry and detection in real-world cybersecurity environments.
 
-The approach is applied: each topic is connected to a concrete scenario, a detection technique, or a real response decision.
+The project connects technical concepts with operational cybersecurity scenarios through:
+
+- SOC operations
+- Threat Intelligence
+- DFIR / Digital Forensics
+- Detection Engineering
+- TLS traffic analysis
+- Hunting workflows
 
 ---
 
-## Learning Focus
+## Learning Objectives
 
-- Identify encoded and encrypted data in real-world network traffic scenarios
-- Understand how hashing algorithms are used and abused in authentication systems
-- Recognize weak or poorly implemented cryptographic practices and their security impact
-- Analyze TLS session anomalies through JA3 fingerprinting
-- Interpret ransomware behavior from a technical and forensic perspective
-- Map offensive techniques to the MITRE ATT&CK framework
-- Develop analytical judgment to classify and prioritize threats
+- Identify encoded, encrypted and hashed data
+- Understand defensive and malicious uses of cryptography
+- Detect TLS anomalies using JA3/JA3S fingerprints
+- Analyze encrypted traffic and telemetry
+- Build operational analytical skills
 
 ---
 
 ## Project Structure
 
+```text
+/assets
+/cases
+/exercises
+/implementations
+/laboratories
+/resources
+/theory
+/tools
 ```
-/teoria           → Cryptography concepts explained from a SOC analyst perspective
-/implementaciones → Runnable Python scripts illustrating encoding, hashing, AES, and RSA
-/ejercicios       → Practical activities organized across three increasing difficulty levels
-/tools            → Interactive tool with analysis console, CTF lab, and reference sheet
-/cases            → SOC analysis cases with real logs, MITRE ATT&CK mapping, and analyst verdict
-/lab              → Additional exercises with guided structure
-```
+
+---
+
+# 📘 Learning Path
+
+The content is organized progressively to support both self-learning and academic or operational training environments.
+
+## Included Modules
+
+00. Fundamentals
+01. Encoding and data representation
+02. Hashing and integrity
+03. Symmetric cryptography
+04. Asymmetric cryptography
+05. TLS and secure communications
+06. Digital signatures and authentication
+07. Ransomware and offensive use of cryptography
+08. Password cracking and credential auditing
+09. TLS Fingerprinting (JA3/JA3S)
+10. Detection Engineering and telemetry
+
+The progression is designed to connect theory, analysis and practical application in real-world cybersecurity scenarios.
+
+---
+
+## Interactive Labs
+
+### John The Ripper Lab
+
+- password auditing
+- controlled cracking
+- hash analysis
+- wordlists
+- weak authentication analysis
+
+### TLS / JA3 Fingerprinting Lab
+
+Includes:
+
+- JA3 generation
+- JA3 vs JA3S
+- Client Hello analysis
+- Wireshark
+- tshark
+- Zeek
+- Snort / Suricata
+- QRadar
+- FortiGate / FortiAnalyzer
+- detection engineering
+- hunting workflows
 
 ---
 
 ## Analysis Scenarios
 
-Each case includes an event log, a complete technical analysis, and a conclusion with an analyst verdict. The goal is to practice the investigation process, not arrive at a predetermined answer.
-
-### Case 01 — Base64 Exfiltration
-HTTP request with a Base64-encoded parameter sent to a suspicious domain via curl. The exercise focuses on identifying exfiltration indicators and analyzing basic evasion techniques.
-
-### Case 02 — Weak Hash Detection
-Authentication attempt using an MD5 hash of a trivial password (`password`) from an internal IP. The focus is on assessing the risk of weak algorithms in authentication systems and evaluating secure alternatives.
-
-### Case 03 — TLS Anomaly
-TLS session with a self-signed certificate and anomalous JA3 fingerprint toward anonymous infrastructure. The exercise covers detecting potential encrypted C2 channels through TLS metadata analysis.
-
-### Case 04 — Ransomware Activity
-Active ransomware event with mass file encryption, shadow copy deletion, AV disabling, and outbound connection. The focus is on analyzing the behavioral chain and working through containment and response decisions.
+- Base64 exfiltration
+- Weak hash detection
+- TLS anomalies
+- Ransomware activity
+- Telemetry correlation
+- Indicators of compromise
 
 ---
 
-## Tools & Techniques
+## Project Approach
 
-| Area                  | Tools / Concepts                                  |
-|-----------------------|---------------------------------------------------|
-| Encoding              | Base64, Hex, URL encoding, CyberChef              |
-| Hashing               | MD5, SHA-1, SHA-256, HMAC, rainbow tables         |
-| Symmetric encryption  | AES-CBC, AES-GCM, IV reuse vulnerability          |
-| Asymmetric encryption | RSA-2048, PKCS1_OAEP, PSS digital signatures      |
-| TLS inspection        | JA3/JA3S fingerprinting, Wireshark, SNI analysis  |
-| Password auditing     | John the Ripper (forensic context)                |
-| Threat Intelligence   | MITRE ATT&CK, IOC classification, TIP integration |
+| Area | Application |
+|------|------|
+| Cryptography | Core concepts |
+| SOC | Detection and monitoring |
+| Threat Intelligence | Context and attribution |
+| DFIR | Integrity and evidence |
+| Detection Engineering | Correlation and rules |
 
 ---
 
-## How to Use
+## Features
 
-1. Open `index.html` in a browser to access the main panel.
-2. Navigate to `/tools/crypto-demo.html` for the interactive demo with console and CTF lab.
-3. Review cases under `/cases/` — each includes logs, full analysis, and a conclusion with analyst verdict.
-4. Run scripts under `/implementaciones/` with Python 3 + pycryptodome.
+- Pure HTML, CSS and JavaScript
+- GitHub Pages compatible
+- Responsive design
+- Dark cyber theme
+- Interactive labs
+- Self-learning oriented
 
-```bash
-pip install pycryptodome
-python implementaciones/03_aes.py
+---
+
+# Technical Architecture
+
+| Component | Technology |
+|------|------|
+| Frontend | Pure HTML, CSS and JavaScript |
+| Backend | None (100% client-side) |
+| Dependencies | No external frameworks |
+| Hosting | GitHub Pages / static servers |
+| Compatibility | Modern browsers |
+
+The project prioritizes:
+
+- simplicity
+- portability
+- maintainability
+- deployment flexibility
+- visual and educational clarity
+
+---
+
+# Usage & Deployment
+
+The project is fully static and can be used:
+
+- directly through GitHub Pages
+- by cloning the repository locally
+- from any static web server
+
+It does not require:
+
+- backend services
+- databases
+- dependency installation
+
+Compatible with:
+
+- Chrome
+- Firefox
+- Edge
+- modern ES6-compatible browsers
+
+It can also be used as:
+- educational support material
+- self-learning platform
+- offline laboratory
+- demonstration environment for technical training
+
+---
+
+## Intended Audience
+
+- cybersecurity students
+- SOC analysts
+- DFIR teams
+- Threat Intelligence professionals
+- instructors
+- self-learners
+
+---
+
+## Responsible Use
+
+This project is intended exclusively for educational and defensive purposes.
+
+The included labs, examples and scenarios are designed for:
+
+- technical training
+- authorized analysis
+- academic research
+- controlled environments
+- detection and analytical practice
+
+They should not be used against:
+
+- third-party infrastructure
+- unauthorized systems
+- production environments
+- real targets without explicit consent
+
+Some examples, fingerprints, indicators and scenarios may be:
+- simulated
+- simplified
+- pedagogically adapted
+
+The purpose of this project is to promote technical understanding, analytical thinking and responsible use of cryptography and cybersecurity-related tools.
+
+---
+
+## Project Status
+
+Continuously evolving project including:
+- applied theory
+- interactive labs
+- TLS analysis
+- JA3/JA3S fingerprinting
+- telemetry
+- detection engineering
+- hunting workflows
+
+---
+
+## Philosophy
+
+```text
+Cryptography
+    ↓
+Protocols
+    ↓
+Telemetry
+    ↓
+Detection
+    ↓
+Analysis
+    ↓
+SOC / DFIR Operations
 ```
 
 ---
 
-## Target Roles
+## Contributions
 
-This material is intended for those working or training in roles such as SOC analysis, threat intelligence, and digital forensics. It is also useful for any security professional looking to deepen their understanding of the cryptographic dimension of defensive work.
-
----
-
-## Notes
-
-- Educational project focused on real-world applicability in SOC environments.
-- All cases are based on real threat patterns documented in MITRE ATT&CK.
-- Python scripts are functional and executable in a local environment.
+Please review:
+- CONTRIBUTING.md
+- SECURITY.md
 
 ---
 
-**Author**: [@xavimape](https://github.com/xavimape)
+## License
+
+MIT License
+
+---
+
+**Author**: @xavimape
